@@ -41,6 +41,9 @@ swaps per second, up from about 60. Swaps can repeat images and do not
 measure distinct frames shown on the display. In the 3D main menu on the
 test machine, both modes produced about 28 swaps per second with draw
 work. The higher refresh setting alone did not speed up that scene.
+On the test machine's AMD Renoir GPU, GPU utilization stayed at 99% in
+both modes. Requesting 640×480 did not lower the 1280×720 swap-source
+resolution in this menu.
 
 This is not a verified 120 FPS mode. A 120 Hz or faster display is needed
 to verify visible motion at that rate. Race timing, physics, replays,
