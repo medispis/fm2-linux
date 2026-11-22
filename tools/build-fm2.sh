@@ -38,8 +38,15 @@ if [ ! -f "$manifest" ]; then
 fi
 python3 tools/configure_smoke.py
 
-for patch in rexglue-async-read.patch rexglue-empty-resolve.patch rexglue-unsynced-present.patch; do
+for patch in rexglue-async-read.patch rexglue-empty-resolve.patch rexglue-unsynced-present.patch \
+             rexglue-present-until-launch.patch; do
     patch="$root/patches/$patch"
+    # The follow-up patch changes a line added by unsynced-present.
+    if [ "$patch" = "$root/patches/rexglue-unsynced-present.patch" ] &&
+        git -C "$sdk_source" apply --reverse --check \
+            "$root/patches/rexglue-present-until-launch.patch" 2>/dev/null; then
+        continue
+    fi
     if ! git -C "$sdk_source" apply --reverse --check "$patch" 2>/dev/null; then
         git -C "$sdk_source" apply "$patch"
     fi

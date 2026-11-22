@@ -34,8 +34,10 @@ included in this repository.
 
 ## Experimental refresh rate
 
-`sh tools/run-fm2.sh --experimental-120fps` requests 120 Hz guest timing
-and lets Vulkan present without waiting for the monitor where supported.
+In **F10 → PC Settings**, set **Frame Rate (next launch)** to
+**Experimental (120 Hz)** and restart. The default is **Original (60 Hz)**.
+The experimental mode requests 120 Hz guest timing and lets Vulkan present
+without waiting for the monitor where supported.
 This can cause tearing. Local startup measurements showed about 120 guest
 swaps per second, up from about 60. Swaps can repeat images and do not
 measure distinct frames shown on the display. In the 3D main menu on the
@@ -47,8 +49,9 @@ resolution in this menu.
 
 This is not a verified 120 FPS mode. A 120 Hz or faster display is needed
 to verify visible motion at that rate. Race timing, physics, replays,
-and audio are not validated in this mode. Launch without the flag to use
-the original timing.
+and audio are not validated in this mode. To override the saved setting for
+one launch, use `sh tools/run-fm2.sh --original-timing` or
+`sh tools/run-fm2.sh --experimental-120fps`.
 
 ## How this project was made
 

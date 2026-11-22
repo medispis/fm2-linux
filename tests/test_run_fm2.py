@@ -49,6 +49,15 @@ class RunFm2Tests(unittest.TestCase):
         ])
         self.assertIn("not validated", result.stderr)
 
+    def test_original_timing_overrides_saved_preference(self):
+        result = self.launch("--original-timing")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines()[-3:], [
+            "--ui.video_mode_refresh_rate=60",
+            "--gpu.vsync=true",
+            "--gpu.vulkan.unsynced_present=false",
+        ])
+
     def test_experimental_mode_rejects_conflicting_options(self):
         for override in (
             "--gpu.vsync=false",

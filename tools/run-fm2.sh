@@ -6,11 +6,11 @@ executable="$root/build/smoke-native/fm2"
 disc="$root/private/disc"
 state="$root/private/fm2-state"
 
-experimental=false
-if [ "${1-}" = --experimental-120fps ]; then
-    experimental=true
-    shift
-fi
+timing=
+case "${1-}" in
+    --experimental-120fps) timing=120; shift ;;
+    --original-timing) timing=60; shift ;;
+esac
 
 if [ ! -x "$executable" ] || [ ! -f "$disc/default.xex" ] || [ ! -d "$disc/Media" ]; then
     printf '%s\n' 'Build FM2 and extract the disc first. See README.md.' >&2
@@ -38,20 +38,24 @@ if [ "${1-}" = --check ]; then
     exit 0
 fi
 
-if [ "$experimental" = true ]; then
+if [ -n "$timing" ]; then
     for arg do
         option=${arg%%=*}
         option=${option#--}
         case "${option#no-}" in
             ui.video_mode_refresh_rate|video_mode_refresh_rate|gpu.vsync|vsync|\
             gpu.vulkan.unsynced_present)
-                printf '%s\n' 'Do not combine --experimental-120fps with refresh-rate or VSync overrides.' >&2
+                printf '%s\n' 'Do not combine a timing preset with refresh-rate or VSync overrides.' >&2
                 exit 2
                 ;;
         esac
     done
-    printf '%s\n' 'Experimental: 120 Hz guest timing, host VSync off. Gameplay timing is not validated.' >&2
-    set -- --ui.video_mode_refresh_rate=120 --gpu.vsync=true --gpu.vulkan.unsynced_present=true "$@"
+    if [ "$timing" = 120 ]; then
+        printf '%s\n' 'Experimental: 120 Hz guest timing, host VSync off. Gameplay timing is not validated.' >&2
+        set -- --ui.video_mode_refresh_rate=120 --gpu.vsync=true --gpu.vulkan.unsynced_present=true "$@"
+    else
+        set -- --ui.video_mode_refresh_rate=60 --gpu.vsync=true --gpu.vulkan.unsynced_present=false "$@"
+    fi
 fi
 
 mkdir -p "$state"

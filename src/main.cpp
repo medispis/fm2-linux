@@ -4,6 +4,7 @@
 #include <fstream>
 #include <map>
 #include <string>
+#include <string_view>
 #include <system_error>
 
 #include <imgui.h>
@@ -23,9 +24,34 @@ std::filesystem::path PcSettingsPath() {
   return REX_PATHS().config_file.Get().parent_path() / "fm2-pc-settings.txt";
 }
 
+struct PcPreferences {
+  bool fullscreen = false;
+  bool experimental_120hz = false;
+};
+
+PcPreferences ReadPcPreferences() {
+  PcPreferences preferences;
+  std::ifstream stream(PcSettingsPath());
+  for (std::string line; std::getline(stream, line);) {
+    if (line == "fullscreen=true" || line == "fullscreen=false") {
+      preferences.fullscreen = line == "fullscreen=true";
+    } else if (line == "refresh_hz=120" || line == "refresh_hz=60") {
+      preferences.experimental_120hz = line == "refresh_hz=120";
+    }
+  }
+  return preferences;
+}
+
+constexpr std::array<std::pair<std::string_view, std::string_view>, 3> kExperimentalTiming{{
+    {"ui.video_mode_refresh_rate", "120"},
+    {"gpu.vsync", "true"},
+    {"gpu.vulkan.unsynced_present", "true"},
+}};
+
 class PcSettingsDialog final : public rex::ui::DialogBase {
  public:
-  explicit PcSettingsDialog(rex::ui::IUISystem& ui) : ui_(ui) {}
+  explicit PcSettingsDialog(rex::ui::IUISystem& ui)
+      : ui_(ui), preferences_(ReadPcPreferences()) {}
 
   bool WantsExclusiveInput() const override { return true; }
 
@@ -42,11 +68,18 @@ class PcSettingsDialog final : public rex::ui::DialogBase {
       } else if (ImGui::IsKeyPressed(ImGuiKey_F, false)) {
         SetFullscreen(!fullscreen);
       }
-      ImGui::TextUnformatted("F: Toggle Fullscreen  |  Esc: Close");
-      ImGui::TextUnformatted("Frame Rate: Original");
-      ImGui::TextWrapped("Higher frame rates are not available yet.");
+      int timing = preferences_.experimental_120hz ? 1 : 0;
+      if (ImGui::Combo("Frame Rate (next launch)", &timing,
+                       "Original (60 Hz)\0Experimental (120 Hz)\0")) {
+        Save({preferences_.fullscreen, timing == 1});
+      } else if (ImGui::IsKeyPressed(ImGuiKey_R, false)) {
+        Save({preferences_.fullscreen, !preferences_.experimental_120hz});
+      }
+      ImGui::TextUnformatted("F: Fullscreen  |  R: Frame Rate  |  Esc: Close");
+      ImGui::TextWrapped("Restart to apply. 120 Hz may tear; actual FPS and gameplay timing "
+                         "are not verified. Launch overrides take precedence.");
       if (ImGui::Button("Reset to Defaults")) {
-        SetFullscreen(false);
+        SetFullscreen(false, false);
       }
       ImGui::SameLine();
       if (ImGui::Button("Close")) {
@@ -62,30 +95,45 @@ class PcSettingsDialog final : public rex::ui::DialogBase {
 
  private:
   void SetFullscreen(bool fullscreen) {
+    SetFullscreen(fullscreen, preferences_.experimental_120hz);
+  }
+
+  void SetFullscreen(bool fullscreen, bool experimental_120hz) {
     auto changed = REX_SETTINGS().SetText("ui.fullscreen", fullscreen ? "true" : "false");
     if (!changed) {
       status_ = changed.error().message;
       return;
     }
+    Save({fullscreen, experimental_120hz});
+  }
+
+  void Save(PcPreferences preferences) {
     const auto path = PcSettingsPath();
     auto pending = path;
     pending += ".tmp";
     {
       std::ofstream stream(pending, std::ios::trunc);
-      stream << (fullscreen ? "fullscreen=true\n" : "fullscreen=false\n");
+      stream << (preferences.fullscreen ? "fullscreen=true\n" : "fullscreen=false\n")
+             << (preferences.experimental_120hz ? "refresh_hz=120\n" : "refresh_hz=60\n");
       stream.close();
       if (!stream) {
-        status_ = "Fullscreen changed but the preference could not be saved.";
+        status_ = "Could not save PC settings.";
         return;
       }
     }
     std::error_code error;
     std::filesystem::rename(pending, path, error);
-    status_ = error ? "Fullscreen changed but the preference could not be saved."
-                    : "Settings saved.";
+    if (error) {
+      status_ = "Could not save PC settings.";
+      return;
+    }
+    const bool timing_changed = preferences_.experimental_120hz != preferences.experimental_120hz;
+    preferences_ = preferences;
+    status_ = timing_changed ? "Settings saved. Restart to apply the frame rate." : "Settings saved.";
   }
 
   rex::ui::IUISystem& ui_;
+  PcPreferences preferences_;
   std::string status_;
 };
 
@@ -103,14 +151,22 @@ class Fm2App : public rex::app::TitleApp {
 
   rex::Result<void> OnInit() override {
     REX_TRY_VOID(TitleApp::OnInit());
+    const auto preferences = ReadPcPreferences();
     auto& fullscreen = GetUI().GetSettings().fullscreen;
-    if (fullscreen.GetLayer() <= rex::SettingLayer::kTitle) {
-      std::ifstream stream(PcSettingsPath());
-      std::string preference;
-      if (std::getline(stream, preference) &&
-          (preference == "fullscreen=true" || preference == "fullscreen=false")) {
-        REX_TRY_VOID(fullscreen.SetText(rex::SettingLayer::kTitle,
-                                       preference == "fullscreen=true" ? "true" : "false"));
+    if (preferences.fullscreen && fullscreen.GetLayer() <= rex::SettingLayer::kTitle) {
+      REX_TRY_VOID(fullscreen.SetText(rex::SettingLayer::kTitle, "true"));
+    }
+    if (preferences.experimental_120hz) {
+      // Treat the three settings as one profile. Do not mix it with explicit overrides.
+      auto& settings = REX_SETTINGS();
+      const bool use_profile = std::ranges::all_of(kExperimentalTiming, [&](const auto& entry) {
+        auto setting = settings.Find(entry.first);
+        return setting && (*setting)->GetLayer() <= rex::SettingLayer::kTitle;
+      });
+      if (use_profile) {
+        for (const auto& [name, value] : kExperimentalTiming) {
+          REX_TRY_VOID(settings.SetText(rex::SettingLayer::kTitle, name, value));
+        }
       }
     }
     static constexpr std::array overlays{
