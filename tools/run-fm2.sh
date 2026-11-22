@@ -40,5 +40,4 @@ exec "$executable" \
     --gpu.driver=vulkan \
     --gpu.xenos.async_shader_compilation=false \
     --log.categories.gpu=error \
-    --ui.fullscreen=false \
     "$@"

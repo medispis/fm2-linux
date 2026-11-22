@@ -24,6 +24,10 @@ For keyboard controls, run `sh tools/run-fm2.sh --hid.mnk_mode=true`.
 Return is Start, Space is A, Backspace is B, WASD is the left stick,
 E accelerates, and Q brakes.
 
+Press **F10** for **PC Settings**. Fullscreen applies immediately and is
+saved separately from career progress. This panel is not yet linked from the
+original Options menu. Higher FPS is not available yet.
+
 The local build runs with Vulkan. Career mode and audio playback were
 confirmed by the user. Game files, generated code, and saves are not
 included in this repository.
