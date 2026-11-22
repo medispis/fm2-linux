@@ -12,7 +12,9 @@ tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
     --transform='s,^,fm2-linux/,' -czf "$archive" -- \
     .gitignore AGENTS.md README.md config/fm2-europe-fibers.toml \
     patches/rexglue-async-read.patch patches/rexglue-empty-resolve.patch src/main.cpp \
+    patches/rexglue-unsynced-present.patch \
     tests/test_configure_smoke.py tests/test_inspect_disc.py tests/test_prepare_strings.py \
+    tests/test_run_fm2.py \
     tools/build-fm2.sh tools/configure_smoke.py tools/inspect_disc.py tools/package-source.sh \
     tools/prepare_strings.py tools/probe_x11.py tools/run-fm2.sh tools/setup-fm2.sh
 sha256sum "$archive"

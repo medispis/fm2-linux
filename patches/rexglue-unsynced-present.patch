@@ -1,0 +1,24 @@
+diff --git a/src/gpu/xenos/host/vulkan/vulkan_presenter.cpp b/src/gpu/xenos/host/vulkan/vulkan_presenter.cpp
+--- a/src/gpu/xenos/host/vulkan/vulkan_presenter.cpp
++++ b/src/gpu/xenos/host/vulkan/vulkan_presenter.cpp
+@@ -798,7 +798,7 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
+     return std::find(present_modes.cbegin(), present_modes.cend(), mode) != present_modes.cend();
+   };
+   switch (ChooseVulkanPresentMode(
+-      vsync,
++      vsync && !settings.unsynced_present.Get(),
+       {settings.allow_present_mode_immediate.Get() &&
+            has_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR),
+        settings.allow_present_mode_mailbox.Get() && has_present_mode(VK_PRESENT_MODE_MAILBOX_KHR),
+diff --git a/src/gpu/xenos/host/vulkan/vulkan_settings.h b/src/gpu/xenos/host/vulkan/vulkan_settings.h
+--- a/src/gpu/xenos/host/vulkan/vulkan_settings.h
++++ b/src/gpu/xenos/host/vulkan/vulkan_settings.h
+@@ -67,6 +67,8 @@ class VulkanSettings : public SettingOwner {
+               kStartupOnly);
+   REX_SETTING(bool, log_debug_messages, true, "Log Vulkan debug messages");
+   REX_SETTING(bool, render_pass_clear, true, "Clear render pass during presentation");
++  REX_SETTING(bool, unsynced_present, false,
++              "Disable host VSync without changing guest vblank pacing", kStartupOnly);
+   REX_SETTING(bool, allow_present_mode_immediate, true, "Allow immediate present mode (no vsync)");
+   REX_SETTING(bool, allow_present_mode_mailbox, true,
+               "Allow mailbox present mode (triple buffering)");

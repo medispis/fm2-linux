@@ -26,11 +26,23 @@ E accelerates, and Q brakes.
 
 Press **F10** for **PC Settings**. Fullscreen applies immediately and is
 saved separately from career progress. This panel is not yet linked from the
-original Options menu. Higher FPS is not available yet.
+original Options menu.
 
 The local build runs with Vulkan. Career mode and audio playback were
 confirmed by the user. Game files, generated code, and saves are not
 included in this repository.
+
+## Experimental refresh rate
+
+`sh tools/run-fm2.sh --experimental-120fps` requests 120 Hz guest timing
+and lets Vulkan present without waiting for the monitor where supported.
+This can cause tearing. Local startup measurements showed about 120 guest
+swaps per second, up from about 60. Swaps can repeat images and do not
+measure distinct frames shown on the display. Use a 120 Hz or faster
+display to evaluate visible motion.
+
+Race timing, physics, replays, and audio are not validated in this mode.
+Launch without the flag to use the original timing.
 
 ## How this project was made
 
