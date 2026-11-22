@@ -4,6 +4,11 @@ The supported target is the unpatched European disc on Linux x86-64.
 Native driving, Vulkan rendering and profile reload were verified locally.
 The user tested and confirmed career mode and audio playback.
 
+## How this project was made
+
+A human planned and managed this project. AI did most of the implementation,
+debugging, and documentation under human direction.
+
 ## Identify the disc
 
 Use an ISO dumped from your own disc. The inspection tool uses Python 3's
