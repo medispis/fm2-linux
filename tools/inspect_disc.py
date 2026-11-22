@@ -126,6 +126,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("iso", type=Path)
     parser.add_argument("--extract-xex", type=Path, help="write to a new file")
+    parser.add_argument("--expect-xex-sha256", help="reject discs whose default.xex does not match")
     args = parser.parse_args()
     try:
         with args.iso.open("rb") as image:
@@ -142,6 +143,8 @@ def main():
             "xex_modules": modules,
             "default_xex": xex_info(data),
         }
+        if args.expect_xex_sha256 and report["default_xex"]["sha256"] != args.expect_xex_sha256:
+            raise ValueError("unsupported default.xex; the European disc hash must match")
         if args.extract_xex:
             with args.extract_xex.open("xb") as output:
                 output.write(data)

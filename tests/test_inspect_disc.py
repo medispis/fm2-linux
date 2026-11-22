@@ -1,6 +1,7 @@
 import hashlib
 from pathlib import Path
 import struct
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -33,6 +34,21 @@ def image(executable, left=0):
 
 
 class InspectDiscTests(unittest.TestCase):
+    def test_reject_wrong_hash_without_extracting(self):
+        with tempfile.TemporaryDirectory() as directory:
+            disk = Path(directory) / "disc.iso"
+            output = Path(directory) / "default.xex"
+            disk.write_bytes(image(xex()))
+            proc = subprocess.run(
+                [sys.executable, inspect_disc.__file__, str(disk),
+                 "--expect-xex-sha256", "0" * 64, "--extract-xex", str(output)],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(proc.returncode, 1)
+            self.assertIn("European disc hash must match", proc.stderr)
+            self.assertFalse(output.exists())
+
     def test_partition_and_xex_metadata(self):
         executable = xex()
         with tempfile.TemporaryFile() as stream:
