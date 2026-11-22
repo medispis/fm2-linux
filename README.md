@@ -38,11 +38,14 @@ included in this repository.
 and lets Vulkan present without waiting for the monitor where supported.
 This can cause tearing. Local startup measurements showed about 120 guest
 swaps per second, up from about 60. Swaps can repeat images and do not
-measure distinct frames shown on the display. Use a 120 Hz or faster
-display to evaluate visible motion.
+measure distinct frames shown on the display. In the 3D main menu on the
+test machine, both modes produced about 28 swaps per second with draw
+work. The higher refresh setting alone did not speed up that scene.
 
-Race timing, physics, replays, and audio are not validated in this mode.
-Launch without the flag to use the original timing.
+This is not a verified 120 FPS mode. A 120 Hz or faster display is needed
+to verify visible motion at that rate. Race timing, physics, replays,
+and audio are not validated in this mode. Launch without the flag to use
+the original timing.
 
 ## How this project was made
 
