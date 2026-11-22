@@ -11,4 +11,6 @@
 - Keep game files, generated game code, saves, build products, and test
   captures out of commits and source packages.
 - Run setup tests and the non-gameplay launch check before committing. Do not
-  run gameplay tests unless the user asks. Ask before pushing.
+  run gameplay tests unless the user asks.
+- Push each verified project commit to `origin` without asking again. Do not
+  force-push or publish game files, saves, or build products.
