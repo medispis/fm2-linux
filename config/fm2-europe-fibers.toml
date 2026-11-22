@@ -1,0 +1,9 @@
+# FM2 European media 3E3180AE, version 0.0.0.3.
+# Replace the complete set so guest fiber handles and native continuations
+# are managed by the same runtime.
+[shim]
+ConvertThreadToFiber = 0x82754CD0
+ConvertFiberToThread = 0x82754D60
+CreateFiber = 0x82754DB0
+DeleteFiber = 0x82754E90
+SwitchToFiber = 0x82754EF0

@@ -1,0 +1,13 @@
+diff --git a/src/kernel/xboxkrnl/xboxkrnl_io.cpp b/src/kernel/xboxkrnl/xboxkrnl_io.cpp
+--- a/src/kernel/xboxkrnl/xboxkrnl_io.cpp
++++ b/src/kernel/xboxkrnl/xboxkrnl_io.cpp
+@@ -256,4 +256,9 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, MappedVoid apc_routine_p
+       // Signal the event only after the info is written.
+       signal_event = true;
++      if (!file->is_synchronous) {
++        // The read is already complete on the host, but the guest's
++        // asynchronous path takes its status from the completed IOSB.
++        result = X_STATUS_PENDING;
++      }
+     }
+   }

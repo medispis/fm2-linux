@@ -1,0 +1,10 @@
+/private/
+/build/
+*.iso
+*.7z
+*.xex
+*.xexp
+__pycache__/
+*.py[cod]
+/.tmp_*/
+/Vimm's Lair.txt

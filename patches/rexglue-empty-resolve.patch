@@ -1,0 +1,11 @@
+diff --git a/src/gpu/xenos/draw_state.cpp b/src/gpu/xenos/draw_state.cpp
+--- a/src/gpu/xenos/draw_state.cpp
++++ b/src/gpu/xenos/draw_state.cpp
+@@ -575,4 +575,5 @@ bool GetResolveInfo(const XenosSettings& settings, const xenos::RegisterFile& reg
+-  REX_ASSERT(x0 < x1 && y0 < y1);
+   if (x0 >= x1 || y0 >= y1) {
+-    REXGPU_FAIL(false, "Resolve region is empty");
++    // A clipped or zero-size resolve has no pixels to copy. The caller
++    // uses the zero dimensions initialized above to skip this command.
++    return true;
+   }
