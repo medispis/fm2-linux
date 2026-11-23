@@ -1,9 +1,9 @@
 # Graphics optimization findings
 
 This audit covers FM2's pinned ReXGlue v0.11.0 revision
-`a3e1d82678ca20d68d4837a8e9ee4652ff073745`. It uses source inspection and
-existing local captures. No renderer changes, new benchmarks, or race
-tests were made.
+`a3e1d82678ca20d68d4837a8e9ee4652ff073745`. It uses source inspection,
+archived captures, and a menu-only resolve benchmark. The temporary
+timing probe was removed after the test. No races were run.
 
 ## What the existing capture shows
 
@@ -46,12 +46,27 @@ shader. The later resolve dispatch still reads the intermediate EDRAM
 buffer and writes the destination. A “direct resolve success” therefore
 does not mean a copy was avoided.
 
-The lowest-effort test is an A/B run with `--gpu.xenos.direct_host_resolve=false`.
-Confirm the host-render-target path is active and time CPU resolve setup
-separately from GPU work. This tests whether the preflight costs anything
-on FM2; it does not remove the GPU copy. If the dump and copy are expensive
-and one format dominates, consider a shader that writes the guest-tiled
-destination directly for that specific format. Keep the fallback for
+**A/B result: keep the default.** Four runs used the Arcade tab at 60 Hz
+with FIFO presentation (Vulkan mode 2), a 958×1052 window, and the same
+starting shader cache on a Ryzen 7 PRO 5850U (RADV Renoir, Mesa 26.3.1),
+on battery. Each run contributed nine two-second sample windows.
+
+| Run order | Preflight | Resolve calls | Mean host elapsed time per call |
+|---|---|---:|---:|
+| 1 | On | 9,690 | 12.376 µs |
+| 2 | Off | 9,588 | 12.186 µs |
+| 3 | Off | 9,716 | 12.279 µs |
+| 4 | On | 9,687 | 12.159 µs |
+
+The sample-weighted difference was about **0.04 µs per call**, smaller
+than the variation between the two runs with the preflight enabled.
+The successful copy rate was about 0.667 per resolve call in all four
+runs. The probe measured elapsed time on the host thread, not GPU time
+or FPS. These results do not justify changing the default.
+
+If GPU timing shows the dump and copy are expensive and one format
+dominates, consider a shader that writes the guest-tiled destination
+directly for that format. Keep the fallback for
 untested cases and compare destination bytes, including tile placement,
 format conversion, MSAA, and depth/stencil where applicable. Resolve
 clears and texture-cache notifications must still happen.
@@ -86,8 +101,8 @@ not evidence of higher steady-state FPS.
 ## Suggested first benchmark
 
 Use a normal 60 Hz launch, the same Arcade tab and window size, and a
-warmed cache. Repeat the runs and record median and 95th-percentile frame
-times, GPU draw and resolve spans, and CPU resolve setup time. Start with
-draw attribution and the direct-resolve A/B test before changing renderer
-behavior. Check output before keeping any optimization. A menu
-result is not a race result; verify races separately only with approval.
+warmed cache. Keep the power source and power profile fixed across runs.
+Record median and 95th-percentile frame times and attribute GPU time to
+draws and resolves separately. Start with the 1280×512 draw spans.
+Check output before keeping any optimization. A menu result is not a race
+result; verify races separately only with approval.
