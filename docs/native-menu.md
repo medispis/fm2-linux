@@ -25,6 +25,17 @@ The new page uses the existing `P_OPT.xgf` scene to show the rows and
 `PopUp_Message.xgf` to handle confirmation and Back. The flow supplies
 the new data and events; the disc still supplies the scene assets.
 
+### Preview artwork
+
+The Options scene looks up its right-hand preview by category name.
+Setup converts the port's [original monitor artwork](../assets/display-preview.dds)
+from a 512×512 BC3 DDS into the tiled, byte-swapped XDS format used by the
+supported disc. It installs the preview as loose files for the category
+and each of its rows under `private/disc/Media/UI/Textures/P_Map/P_OPT/`.
+The artwork was AI-generated for this port. The stock `Textures.zip`,
+`UI.zip`, and `Media/zipmanifest.xml` are not edited; the game still draws
+the menu, selection highlights, and controller prompts.
+
 ## Guest-to-host bridge
 
 | European hook | Role |

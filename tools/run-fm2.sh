@@ -28,10 +28,17 @@ if [ "${1-}" = --check ]; then
         exit 1
     fi
     if [ ! -s "$root/private/display-menu/stock.xml" ] ||
-        [ ! -s "$root/private/display-menu/options.xml" ]; then
+       [ ! -s "$root/private/display-menu/options.xml" ]; then
         printf '%s\n' 'Missing native display menu data. Rerun setup.' >&2
         exit 1
     fi
+    for category in FM2Display FM2WindowMode FM2AspectMode FM2PerformanceHud \
+                    FM2RefreshRate FM2DisplayDefaults; do
+        if [ ! -s "$disc/Media/UI/Textures/P_Map/P_OPT/P_OPT_ICON_$category.xds" ]; then
+            printf '%s\n' 'Missing native display menu artwork. Rerun setup.' >&2
+            exit 1
+        fi
+    done
     for file in "$executable" "$root/build/smoke-native"/librex*.so; do
         dependencies=$(ldd "$file") || exit 1
         if printf '%s\n' "$dependencies" | grep -F 'not found'; then

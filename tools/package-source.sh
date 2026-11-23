@@ -12,7 +12,7 @@ tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
     --transform='s,^,fm2-linux/,' -czf "$archive" -- \
     .gitignore AGENTS.md README.md CONTRIBUTING.md docs/player-guide.md docs/troubleshooting.md \
     docs/architecture.md docs/native-menu.md \
-    config/fm2-europe-fibers.toml \
+    assets/display-preview.dds config/fm2-europe-fibers.toml \
     patches/rexglue-async-read.patch patches/rexglue-empty-resolve.patch src/main.cpp \
     patches/rexglue-unsynced-present.patch patches/rexglue-present-until-launch.patch \
     patches/rexglue-refresh-until-launch.patch \

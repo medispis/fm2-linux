@@ -93,6 +93,15 @@ class RunFm2Tests(unittest.TestCase):
         menu.mkdir()
         for name in ("stock.xml", "options.xml"):
             (menu / name).write_text("<flow/>\n")
+        art = self.root / "private/disc/Media/UI/Textures/P_Map/P_OPT"
+        art.mkdir(parents=True)
+        for category in ("FM2WindowMode", "FM2AspectMode", "FM2PerformanceHud",
+                         "FM2RefreshRate", "FM2DisplayDefaults"):
+            (art / f"P_OPT_ICON_{category}.xds").write_bytes(b"art")
+        missing = self.launch("--check", env=env)
+        self.assertEqual(missing.returncode, 1)
+        self.assertIn("Missing native display menu artwork", missing.stderr)
+        (art / "P_OPT_ICON_FM2Display.xds").write_bytes(b"art")
         result = self.launch("--check", env=env)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(

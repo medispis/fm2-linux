@@ -1,3 +1,4 @@
+from collections import Counter
 import hashlib
 from pathlib import Path
 import re
@@ -11,7 +12,11 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
-from prepare_display_menu import DISPLAY_OPTIONS, OPTIONS, QUERY, TITLE, patch_options, prepare
+from prepare_display_menu import (
+    DISPLAY_OPTIONS, OPTIONS, PREVIEW_DATA_SIZE, PREVIEW_DIRECTORY, PREVIEW_HEADER,
+    PREVIEW_SOURCE, PREVIEW_TEMPLATE, QUERY, TITLE, patch_options, prepare, prepare_previews,
+    preview_xds,
+)
 
 
 class PrepareDisplayMenuTests(unittest.TestCase):
@@ -101,3 +106,52 @@ class PrepareDisplayMenuTests(unittest.TestCase):
             self.assertEqual((output / "stock.xml").read_bytes(), stock)
             self.assertEqual((output / "options.xml").read_bytes(), generated)
             self.assertEqual(archive_path.read_bytes(), original_archive)
+
+    def test_previews_are_loose_and_repeatable(self):
+        dds = PREVIEW_SOURCE.read_bytes()
+        expected = preview_xds(dds)
+        self.assertEqual(len(expected), len(PREVIEW_HEADER) + PREVIEW_DATA_SIZE)
+        blocks = dds[128:]
+        tiled = expected[len(PREVIEW_HEADER):]
+        # Every source block appears once after undoing the 16-bit byte swap.
+        linear = bytearray(len(tiled))
+        linear[::2], linear[1::2] = tiled[1::2], tiled[::2]
+        self.assertEqual(
+            Counter(bytes(linear[i:i + 16]) for i in range(0, len(linear), 16)),
+            Counter(blocks[i:i + 16] for i in range(0, len(blocks), 16)),
+        )
+        # The first two blocks in row one lie at offsets 16 and 48 in the tiled image.
+        for offset, pos in ((0, 0), (16, 32), (2048, 16), (2064, 48)):
+            block = blocks[offset:offset + 16]
+            self.assertEqual(expected[52 + pos:68 + pos:2], block[1::2])
+            self.assertEqual(expected[53 + pos:68 + pos:2], block[::2])
+        with self.assertRaisesRegex(ValueError, "DXT5 DDS"):
+            preview_xds(dds[:84] + b"DXT1" + dds[88:])
+        with tempfile.TemporaryDirectory() as directory:
+            disc = Path(directory)
+            archive_path = disc / "Media/UI/Textures.zip"
+            archive_path.parent.mkdir(parents=True)
+            with ZipFile(archive_path, "w", ZIP_DEFLATED) as archive:
+                archive.writestr(PREVIEW_TEMPLATE, PREVIEW_HEADER + bytes(PREVIEW_DATA_SIZE))
+            original = archive_path.read_bytes()
+            prepare_previews(disc)
+            art = disc / PREVIEW_DIRECTORY
+            paths = sorted(art.iterdir())
+            self.assertEqual({p.stem.removeprefix("P_OPT_ICON_") for p in paths},
+                             {"FM2Display", *(row[0] for row in DISPLAY_OPTIONS)})
+            written = [p.stat().st_mtime_ns for p in paths]
+            prepare_previews(disc)
+            self.assertEqual([p.stat().st_mtime_ns for p in paths], written)
+            self.assertTrue(all(p.read_bytes() == expected for p in paths))
+            self.assertEqual(archive_path.read_bytes(), original)
+
+    def test_previews_reject_an_unknown_texture_layout(self):
+        with tempfile.TemporaryDirectory() as directory:
+            disc = Path(directory)
+            archive_path = disc / "Media/UI/Textures.zip"
+            archive_path.parent.mkdir(parents=True)
+            with ZipFile(archive_path, "w", ZIP_DEFLATED) as archive:
+                archive.writestr(PREVIEW_TEMPLATE, bytes(len(PREVIEW_HEADER) + PREVIEW_DATA_SIZE))
+            with self.assertRaisesRegex(ValueError, "unexpected stock Options texture layout"):
+                prepare_previews(disc)
+            self.assertFalse((disc / PREVIEW_DIRECTORY).exists())

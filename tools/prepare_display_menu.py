@@ -5,8 +5,9 @@ import argparse
 import hashlib
 from pathlib import Path
 import re
+from struct import unpack_from
 from xml.etree import ElementTree
-from zipfile import ZipFile
+from zipfile import BadZipFile, ZipFile
 
 
 OPTIONS = "Flows/Options.xml"
@@ -15,6 +16,15 @@ QUERY = r'(SELECT \* FROM GameOptionCategories, GameOptionGroupMap WHERE GroupId
 ROW = """ UNION ALL SELECT 1000, 'FM2Display', 'Display " .. string.char(38) .. " Performance', 4, 1000"""
 HELP = '<string id="IDS_FM2Display_Help" text="Linux display and performance settings."/>'
 TITLE = "UI.Strings.SceneTitle = UI:getLocDisplayString("
+PREVIEW_DIRECTORY = Path("Media/UI/Textures/P_Map/P_OPT")
+PREVIEW_SOURCE = Path(__file__).resolve().parents[1] / "assets" / "display-preview.dds"
+PREVIEW_TEMPLATE = "P_Map/P_OPT/P_OPT_ICON_multiscreen.xds"
+PREVIEW_HEADER = bytes.fromhex(
+    "00000003 00000001 00000000 00000000 00000000 ffff0000 ffff0000"
+    "84000002 00000054 0031e1f3 00000d10 00000000 00000a00"
+)
+PREVIEW_BLOCKS = 128
+PREVIEW_DATA_SIZE = PREVIEW_BLOCKS * PREVIEW_BLOCKS * 16
 DISPLAY_OPTIONS = (
     ("FM2WindowMode", "Window Mode", "Switch between windowed and fullscreen.",
      "FM2ToggleFullscreen", "Toggle Fullscreen"),
@@ -129,6 +139,47 @@ def prepare(disc, output):
         pending.replace(output / name)
 
 
+def preview_xds(dds):
+    if (len(dds) != 128 + PREVIEW_DATA_SIZE or dds[:4] != b"DDS "
+            or unpack_from("<I", dds, 4)[0] != 124
+            or unpack_from("<II", dds, 12) != (512, 512)
+            or unpack_from("<I", dds, 28)[0] > 1
+            or dds[84:88] != b"DXT5"):
+        raise ValueError("display preview must be a 512×512 DXT5 DDS without mipmaps")
+    tiled = bytearray(PREVIEW_DATA_SIZE)
+    for y in range(PREVIEW_BLOCKS):
+        for x in range(PREVIEW_BLOCKS):
+            # Xenos tiles compressed blocks in 32×32 groups; BC3 uses 16 bytes per block.
+            macro = ((x >> 5) + (y >> 5) * (PREVIEW_BLOCKS >> 5)) << 11
+            micro = ((x & 7) + ((y & 14) << 2)) << 4
+            offset = macro + ((micro & ~15) << 1) + (micro & 15) + ((y & 1) << 4)
+            bank = ((((y & 8) >> 2) + (x >> 3)) & 3) << 6
+            target = ((offset & ~511) << 3) + ((y & 16) << 7) + ((offset & 448) << 2)
+            target += bank + (offset & 63)
+            source = 128 + (y * PREVIEW_BLOCKS + x) * 16
+            tiled[target:target + 16:2] = dds[source + 1:source + 16:2]
+            tiled[target + 1:target + 16:2] = dds[source:source + 16:2]
+    return PREVIEW_HEADER + tiled
+
+
+def prepare_previews(disc, source=PREVIEW_SOURCE):
+    with ZipFile(disc / "Media/UI/Textures.zip") as archive:
+        with archive.open(PREVIEW_TEMPLATE) as template:
+            if (archive.getinfo(PREVIEW_TEMPLATE).file_size != len(PREVIEW_HEADER) + PREVIEW_DATA_SIZE
+                    or template.read(len(PREVIEW_HEADER)) != PREVIEW_HEADER):
+                raise ValueError("unexpected stock Options texture layout")
+    preview = preview_xds(source.read_bytes())
+    directory = disc / PREVIEW_DIRECTORY
+    directory.mkdir(parents=True, exist_ok=True)
+    for category in ("FM2Display", *(row[0] for row in DISPLAY_OPTIONS)):
+        path = directory / f"P_OPT_ICON_{category}.xds"
+        if path.is_file() and path.read_bytes() == preview:
+            continue
+        pending = path.with_suffix(".tmp")
+        pending.write_bytes(preview)
+        pending.replace(path)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("disc", type=Path)
@@ -136,7 +187,8 @@ def main():
     args = parser.parse_args()
     try:
         prepare(args.disc, args.output)
-    except (OSError, ValueError, ElementTree.ParseError, KeyError) as error:
+        prepare_previews(args.disc)
+    except (OSError, ValueError, ElementTree.ParseError, KeyError, BadZipFile) as error:
         parser.exit(1, f"{parser.prog}: {error}\n")
 
 

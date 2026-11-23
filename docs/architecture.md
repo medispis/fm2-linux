@@ -13,7 +13,7 @@ European disc ISO
   │                      └─ ReXGlue codegen → generated C++ → Clang / Ninja
   └─ ReXGlue VFS dump → extracted disc
                            ├─ loose English string tables
-                           └─ local native-menu inputs
+                           └─ local native-menu flow and preview artwork
 
 FM2 launcher code + compiled game code + ReXGlue runtime → Linux executable
 ```
@@ -37,14 +37,14 @@ would be missing from the link.
 | Local path | Contents |
 |---|---|
 | `private/default.xex` | Verified executable extracted from the ISO. |
-| `private/disc/` | Disc tree mounted by the runtime; setup adds loose English `.str` files from the disc archive. |
+| `private/disc/` | Disc tree mounted by the runtime; setup adds loose English `.str` files and the port's native menu previews. |
 | `private/display-menu/` | Original and transformed Options XML generated locally. |
 | `build/smoke/` | ReXGlue project and generated C++. |
 | `build/smoke-native/` | Linux executable and adjacent runtime libraries. |
 | `private/fm2-state/` | Saves, logs, preferences, and caches for the standard launcher. |
 
 Setup finishes with `sh tools/run-fm2.sh --check`. This checks the mounted
-XEX hash, a required English string table, the generated menu files, and
+XEX hash, a required English string table, the generated menu files and artwork, and
 the executable's shared-library dependencies. It does not start FM2 or
 verify that Vulkan can render on a specific driver. The
 [README](../README.md#quick-start) remains the only supported setup procedure.
