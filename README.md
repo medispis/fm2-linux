@@ -24,9 +24,12 @@ For keyboard controls, run `sh tools/run-fm2.sh --hid.mnk_mode=true`.
 Return is Start, Space is A, Backspace is B, WASD is the left stick,
 E accelerates, and Q brakes.
 
-Open **Options → Display & Performance** to toggle fullscreen in FM2's
-native menu. Fullscreen applies immediately and is saved separately from
-career progress. **F10** still opens the separate PC Settings panel.
+Open **Options → Display & Performance** in FM2's native menu. Window mode,
+aspect ratio, and the performance HUD apply immediately. **Original** aspect
+fits the image without distortion; **Stretch** fills the window. The HUD
+shows guest FPS and frame time, not distinct frames displayed. **Restore
+Display Defaults** asks for confirmation. These settings are saved separately
+from career progress. **F10** opens the same settings in a separate panel.
 
 The local build runs with Vulkan. Career mode and audio playback were
 confirmed by the user. Game files, generated code, and saves are not
@@ -34,8 +37,8 @@ included in this repository.
 
 ## Experimental refresh rate
 
-In **F10 → PC Settings**, set **Frame Rate (next launch)** to
-**Experimental (120 Hz)** and restart. The default is **Original (60 Hz)**.
+Use **Refresh Rate** in the native menu, or **Frame Rate (next launch)** in
+F10 PC Settings. Restart to apply the choice. The default is **Original (60 Hz)**.
 The experimental mode requests 120 Hz guest timing and lets Vulkan present
 without waiting for the monitor where supported.
 This can cause tearing. Local startup measurements showed about 120 guest

@@ -15,20 +15,57 @@ QUERY = r'(SELECT \* FROM GameOptionCategories, GameOptionGroupMap WHERE GroupId
 ROW = """ UNION ALL SELECT 1000, 'FM2Display', 'Display " .. string.char(38) .. " Performance', 4, 1000"""
 HELP = '<string id="IDS_FM2Display_Help" text="Linux display and performance settings."/>'
 TITLE = "UI.Strings.SceneTitle = UI:getLocDisplayString("
-BRANCH = r"""
-<choice event="FM2Display">
+DISPLAY_OPTIONS = (
+    ("FM2WindowMode", "Window Mode", "Switch between windowed and fullscreen.",
+     "FM2ToggleFullscreen", "Toggle Fullscreen"),
+    ("FM2AspectMode", "Aspect Ratio", "Switch between Original (fit) and Stretch.",
+     "FM2ToggleAspect", "Toggle Aspect Ratio"),
+    ("FM2PerformanceHud", "Performance HUD", "Show or hide guest FPS and frame time.",
+     "FM2ToggleHud", "Toggle HUD"),
+    ("FM2RefreshRate", "Refresh Rate", "Switch between Original (60 Hz) and Experimental "
+     "(120 Hz). Restart required. 120 Hz may tear and does not guarantee 120 FPS.",
+     "FM2ToggleRefresh", "Toggle Refresh Rate"),
+    ("FM2DisplayDefaults", "Restore Display Defaults", "Restore the port's display settings? "
+     "Refresh rate changes after restart.", "FM2RestoreDisplay", "Restore Defaults"),
+)
+
+
+def display_branch():
+    rows = " UNION ALL ".join(
+        f"SELECT {1001 + i} AS Id, '{key}' AS CategoryName, '{label}' AS DisplayName, "
+        f"4 AS GroupId, {1001 + i} AS CatId"
+        for i, (key, label, _, _, _) in enumerate(DISPLAY_OPTIONS)
+    )
+    choices = "".join(rf"""
+<choice event="{key}">
     <popup path="GAME:\Media\UI\Scenes\PopUp_Message.xgf">
-        PopupTitle = "Display " .. string.char(38) .. " Performance"
-        PopupMessage = "Window Mode"
-        HelpButtonTexts = {
-            A = "{colour='255 255 255 255'}Toggle Fullscreen",
-            B = "{colour='255 255 255 255'}[UI.Strings.IDS_Back]"
-        }
-        PopupFuncs = {
-            A = function() UI:fireEvent("FM2ToggleFullscreen") end,
+        PopupTitle = "{label}"
+        PopupMessage = "{description}"
+        HelpButtonTexts = {{
+            A = "{{colour='255 255 255 255'}}{accept}",
+            B = "{{colour='255 255 255 255'}}[UI.Strings.IDS_Back]"
+        }}
+        PopupFuncs = {{
+            A = function() UI:fireEvent("{event}") end,
             B = function() UI:fireEvent("FM2DisplayBack") end
-        }
+        }}
     </popup>
+</choice>
+""" for key, label, description, event, accept in DISPLAY_OPTIONS)
+    return rf"""
+<choice event="FM2Display">
+    <scene path="GAME:\Media\UI\Scenes\P_Scenes\P_OPT\P_OPT.xgf" canGoBack="true">
+        <OnEnter>
+            UI.Flow.SceneTitle = "Display " .. string.char(38) .. " Performance"
+            OptionCategories = DB:execute("{rows}")
+            HelpButtonTexts = {{
+                A = "{{colour='255 255 255 255'}}[UI.Strings.IDS_Select]",
+                B = "{{colour='255 255 255 255'}}[UI.Strings.IDS_Back]"
+            }}
+        </OnEnter>
+    </scene>
+    <logic>UI:setEvent(UI.Flow.OptionCategory)</logic>
+    <branch>{choices}</branch>
     <GoToStart/>
 </choice>
 """
@@ -45,8 +82,13 @@ def patch_options(stock):
     text, count = re.subn(QUERY, lambda m: m[1] + ROW, text)
     if count != 6:
         raise ValueError("unexpected number of Options category queries")
-    text = replace_once(text, "</strings>", HELP + "\n</strings>")
-    text = replace_once(text, '<choice event="Credits">', BRANCH + '<choice event="Credits">')
+    help_strings = "".join(
+        f'<string id="IDS_{key}_Help" text="{description}"/>\n'
+        for key, _, description, _, _ in DISPLAY_OPTIONS
+    )
+    text = replace_once(text, "</strings>", HELP + "\n" + help_strings + "</strings>")
+    text = replace_once(text, '<choice event="Credits">',
+                        display_branch() + '<choice event="Credits">')
     text = replace_once(
         text, TITLE,
         'UI.Strings.SceneTitle = UI.Flow.OptionCategory == "FM2Display" '

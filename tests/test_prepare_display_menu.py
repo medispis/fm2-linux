@@ -11,7 +11,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
-from prepare_display_menu import OPTIONS, QUERY, TITLE, patch_options, prepare
+from prepare_display_menu import DISPLAY_OPTIONS, OPTIONS, QUERY, TITLE, patch_options, prepare
 
 
 class PrepareDisplayMenuTests(unittest.TestCase):
@@ -22,7 +22,7 @@ class PrepareDisplayMenuTests(unittest.TestCase):
             "WHERE GroupId=4 AND CatId=Id"
         )
         return (
-            "<flow><!--" + "padding " * 160 + "--><strings></strings><logic>\n"
+            "<flow><!--" + "padding " * 1000 + "--><strings></strings><logic>\n"
             + f'DB:execute("{query}")\n' * 6
             + TITLE + "category)\n"
             + '</logic><branch><choice event="Credits"></choice></branch></flow>'
@@ -35,11 +35,15 @@ class PrepareDisplayMenuTests(unittest.TestCase):
         flow = ElementTree.fromstring(updated)
         self.assertIsNotNone(flow.find('.//choice[@event="Credits"]'))
         display = flow.find('.//choice[@event="FM2Display"]')
-        popup = display.find("popup")
-        self.assertEqual(popup.get("path"), r"GAME:\Media\UI\Scenes\PopUp_Message.xgf")
-        self.assertIn('UI:fireEvent("FM2ToggleFullscreen")', popup.text)
-        self.assertIn('UI:fireEvent("FM2DisplayBack")', popup.text)
-        self.assertNotIn("dofile", popup.text)
+        scene = display.find("scene")
+        self.assertEqual(scene.get("path"),
+                         r"GAME:\Media\UI\Scenes\P_Scenes\P_OPT\P_OPT.xgf")
+        for key, _, _, action, _ in DISPLAY_OPTIONS:
+            popup = display.find(f'./branch/choice[@event="{key}"]/popup')
+            self.assertEqual(popup.get("path"), r"GAME:\Media\UI\Scenes\PopUp_Message.xgf")
+            self.assertIn(f'UI:fireEvent("{action}")', popup.text)
+            self.assertIn('UI:fireEvent("FM2DisplayBack")', popup.text)
+            self.assertNotIn("dofile", popup.text)
         self.assertIsNotNone(display.find("GoToStart"))
         self.assertIsNotNone(flow.find('.//string[@id="IDS_FM2Display_Help"]'))
 
@@ -51,6 +55,11 @@ class PrepareDisplayMenuTests(unittest.TestCase):
             INSERT INTO GameOptionCategories VALUES (13, 'Credits', 'Credits');
             INSERT INTO GameOptionGroupMap VALUES (4, 13);
         """)
+        display_query = re.search(r'DB:execute\("([^"]+)"\)', scene.findtext("OnEnter"))[1]
+        self.assertEqual(
+            [row[1:3] for row in db.execute(display_query)],
+            [(key, label) for key, label, _, _, _ in DISPLAY_OPTIONS],
+        )
         lua = flow.findtext("logic")
         self.assertEqual(lua.count('" .. string.char(38) .. "'), 7)
         queries = re.findall(QUERY, lua.replace('" .. string.char(38) .. "', "&"))

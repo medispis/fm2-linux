@@ -11,6 +11,7 @@
 #include <imgui.h>
 #include <rex/app/title_app.h>
 #include <rex/filesystem/file_system.h>
+#include <rex/gpu/graphics_system.h>
 #include <rex/kernel/title_paths.h>
 #include <rex/kernel/title_runtime.h>
 #include <rex/logging/log_category.h>
@@ -30,6 +31,8 @@ struct DisplayMenuFlow {
 
 DisplayMenuFlow display_menu_flow;
 rex::ui::IUISystem* display_menu_ui = nullptr;
+rex::gpu::IGraphicsSystem* display_menu_graphics = nullptr;
+constexpr std::string_view kPerformanceHud = "fm2_performance_hud";
 constexpr std::size_t kStockOptionsSize = 33679;
 
 DisplayMenuFlow ReadDisplayMenuFlow(const std::filesystem::path& game_root) {
@@ -61,6 +64,8 @@ std::filesystem::path PcSettingsPath() {
 struct PcPreferences {
   bool fullscreen = false;
   bool experimental_120hz = false;
+  bool stretch = false;
+  bool performance_hud = false;
 };
 
 PcPreferences ReadPcPreferences() {
@@ -71,6 +76,10 @@ PcPreferences ReadPcPreferences() {
       preferences.fullscreen = line == "fullscreen=true";
     } else if (line == "refresh_hz=120" || line == "refresh_hz=60") {
       preferences.experimental_120hz = line == "refresh_hz=120";
+    } else if (line == "aspect=original" || line == "aspect=stretch") {
+      preferences.stretch = line == "aspect=stretch";
+    } else if (line == "performance_hud=true" || line == "performance_hud=false") {
+      preferences.performance_hud = line == "performance_hud=true";
     }
   }
   return preferences;
@@ -82,7 +91,9 @@ bool WritePcPreferences(const PcPreferences& preferences) {
   pending += ".tmp";
   std::ofstream stream(pending, std::ios::trunc);
   stream << (preferences.fullscreen ? "fullscreen=true\n" : "fullscreen=false\n")
-         << (preferences.experimental_120hz ? "refresh_hz=120\n" : "refresh_hz=60\n");
+         << (preferences.experimental_120hz ? "refresh_hz=120\n" : "refresh_hz=60\n")
+         << (preferences.stretch ? "aspect=stretch\n" : "aspect=original\n")
+         << (preferences.performance_hud ? "performance_hud=true\n" : "performance_hud=false\n");
   stream.close();
   if (!stream) {
     return false;
@@ -97,6 +108,48 @@ constexpr std::array<std::pair<std::string_view, std::string_view>, 3> kExperime
     {"gpu.vsync", "true"},
     {"gpu.vulkan.unsynced_present", "true"},
 }};
+
+constexpr std::string_view kLetterbox = "gpu.xenos.present_letterbox";
+
+rex::Result<void> ApplyDisplayPreferences(rex::ui::IUISystem& ui,
+                                          const PcPreferences& before,
+                                          const PcPreferences& after, bool reset = false) {
+  auto& settings = REX_SETTINGS();
+  if ((reset || before.fullscreen != after.fullscreen) &&
+      ui.GetSettings().fullscreen.Get() != after.fullscreen) {
+    REX_TRY_VOID(settings.SetText("ui.fullscreen", after.fullscreen ? "true" : "false"));
+  }
+  if (reset || before.stretch != after.stretch) {
+    REX_TRY_VOID(settings.SetText(kLetterbox, after.stretch ? "false" : "true"));
+  }
+  if (reset || before.performance_hud != after.performance_hud) {
+    ui.ShowOverlay(kPerformanceHud, after.performance_hud);
+  }
+  if (!WritePcPreferences(after)) {
+    return rex::Err(rex::ErrorCategory::kRuntime, "Could not save PC settings.");
+  }
+  return rex::Ok();
+}
+
+class PerformanceHud final : public rex::ui::DialogBase {
+ public:
+  bool Draw(ImGuiIO&) override {
+    if (!display_menu_graphics) {
+      return true;
+    }
+    const auto stats = display_menu_graphics->GetFrameStats();
+    ImGui::SetNextWindowPos(ImVec2(12, 12));
+    ImGui::SetNextWindowBgAlpha(0.75f);
+    if (ImGui::Begin("##FM2Performance", nullptr,
+                     ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+                         ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoSavedSettings |
+                         ImGuiWindowFlags_NoFocusOnAppearing)) {
+      ImGui::Text("Guest: %.1f FPS | %.2f ms", stats.fps, stats.frame_time_ms);
+    }
+    ImGui::End();
+    return true;
+  }
+};
 
 class PcSettingsDialog final : public rex::ui::DialogBase {
  public:
@@ -119,22 +172,42 @@ class PcSettingsDialog final : public rex::ui::DialogBase {
       ImGui::Separator();
       bool fullscreen = ui_.GetSettings().fullscreen.Get();
       if (ImGui::Checkbox("Fullscreen", &fullscreen)) {
-        SetFullscreen(fullscreen);
+        Change(&PcPreferences::fullscreen, fullscreen);
       } else if (ImGui::IsKeyPressed(ImGuiKey_F, false)) {
-        SetFullscreen(!fullscreen);
+        Change(&PcPreferences::fullscreen, !fullscreen);
+      }
+      bool stretch = preferences_.stretch;
+      if (ImGui::Checkbox("Stretch to fill window", &stretch)) {
+        Change(&PcPreferences::stretch, stretch);
+      }
+      bool hud = preferences_.performance_hud;
+      if (ImGui::Checkbox("Performance HUD", &hud)) {
+        Change(&PcPreferences::performance_hud, hud);
       }
       int timing = preferences_.experimental_120hz ? 1 : 0;
       if (ImGui::Combo("Frame Rate (next launch)", &timing,
                        "Original (60 Hz)\0Experimental (120 Hz)\0")) {
-        Save({preferences_.fullscreen, timing == 1});
+        Change(&PcPreferences::experimental_120hz, timing == 1);
       } else if (ImGui::IsKeyPressed(ImGuiKey_R, false)) {
-        Save({preferences_.fullscreen, !preferences_.experimental_120hz});
+        Change(&PcPreferences::experimental_120hz, !preferences_.experimental_120hz);
       }
       ImGui::TextUnformatted("F: Fullscreen  |  R: Frame Rate  |  Esc: Close");
       ImGui::TextWrapped("Restart to apply. 120 Hz may tear; actual FPS and gameplay timing "
                          "are not verified. Launch overrides take precedence.");
       if (ImGui::Button("Reset to Defaults")) {
-        SetFullscreen(false, false);
+        ImGui::OpenPopup("Restore Display Defaults?");
+      }
+      if (ImGui::BeginPopupModal("Restore Display Defaults?", nullptr,
+                                 ImGuiWindowFlags_AlwaysAutoResize)) {
+        if (ImGui::Button("Restore")) {
+          Save({}, true);
+          ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel")) {
+          ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
       }
       ImGui::SameLine();
       if (ImGui::Button("Close")) {
@@ -149,22 +222,20 @@ class PcSettingsDialog final : public rex::ui::DialogBase {
   }
 
  private:
-  void SetFullscreen(bool fullscreen) {
-    SetFullscreen(fullscreen, preferences_.experimental_120hz);
+  void Change(bool PcPreferences::*field, bool value) {
+    auto preferences = preferences_;
+    preferences.*field = value;
+    Save(preferences, false, field == &PcPreferences::fullscreen);
   }
 
-  void SetFullscreen(bool fullscreen, bool experimental_120hz) {
-    auto changed = REX_SETTINGS().SetText("ui.fullscreen", fullscreen ? "true" : "false");
+  void Save(PcPreferences preferences, bool reset = false, bool fullscreen_changed = false) {
+    auto before = preferences_;
+    if (fullscreen_changed) {
+      before.fullscreen = ui_.GetSettings().fullscreen.Get();
+    }
+    auto changed = ApplyDisplayPreferences(ui_, before, preferences, reset);
     if (!changed) {
       status_ = changed.error().message;
-      return;
-    }
-    Save({fullscreen, experimental_120hz});
-  }
-
-  void Save(PcPreferences preferences) {
-    if (!WritePcPreferences(preferences)) {
-      status_ = "Could not save PC settings.";
       return;
     }
     const bool timing_changed = preferences_.experimental_120hz != preferences.experimental_120hz;
@@ -202,22 +273,42 @@ REX_HOOK_RAW(sub_824B6DB8) {
   if (!from_menu_event || !display_menu_ui || !ctx.r3.u32) {
     return;
   }
-  constexpr char kToggle[] = "FM2ToggleFullscreen";
-  const auto* event = reinterpret_cast<const char*>(base + ctx.r3.u32);
-  if (std::strncmp(event, kToggle, sizeof(kToggle)) != 0) {
+  const auto* text = reinterpret_cast<const char*>(base + ctx.r3.u32);
+  enum class Action { kFullscreen, kAspect, kHud, kRefresh, kRestore };
+  constexpr std::array actions{
+      std::pair{"FM2ToggleFullscreen", Action::kFullscreen},
+      std::pair{"FM2ToggleAspect", Action::kAspect},
+      std::pair{"FM2ToggleHud", Action::kHud},
+      std::pair{"FM2ToggleRefresh", Action::kRefresh},
+      std::pair{"FM2RestoreDisplay", Action::kRestore},
+  };
+  auto action = std::ranges::find_if(actions, [text](const auto& entry) {
+    return std::strncmp(text, entry.first, std::strlen(entry.first) + 1) == 0;
+  });
+  if (action == actions.end()) {
     return;
   }
   auto* ui = display_menu_ui;
-  ui->PostTask([ui] {
-    auto preferences = ReadPcPreferences();
-    preferences.fullscreen = !ui->GetSettings().fullscreen.Get();
-    auto changed = REX_SETTINGS().SetText("ui.fullscreen", preferences.fullscreen ? "true" : "false");
+  ui->PostTask([ui, action = action->second] {
+    auto before = ReadPcPreferences();
+    auto preferences = before;
+    switch (action) {
+      case Action::kFullscreen:
+        before.fullscreen = ui->GetSettings().fullscreen.Get();
+        preferences.fullscreen = !before.fullscreen;
+        break;
+      case Action::kAspect: preferences.stretch = !before.stretch; break;
+      case Action::kHud: preferences.performance_hud = !before.performance_hud; break;
+      case Action::kRefresh: preferences.experimental_120hz = !before.experimental_120hz; break;
+      case Action::kRestore: preferences = {}; break;
+    }
+    auto changed = ApplyDisplayPreferences(*ui, before, preferences, action == Action::kRestore);
     if (!changed) {
       REXLOG_WARN("Native Display & Performance: {}", changed.error().message);
-    } else if (!WritePcPreferences(preferences)) {
-      REXLOG_WARN("Native Display & Performance: could not save window mode");
     } else {
-      REXLOG_INFO("Native Display & Performance: saved fullscreen={}", preferences.fullscreen);
+      REXLOG_INFO("Native Display & Performance: saved fullscreen={}, stretch={}, HUD={}, refresh={}",
+                  preferences.fullscreen, preferences.stretch, preferences.performance_hud,
+                  preferences.experimental_120hz ? 120 : 60);
     }
   });
 }
@@ -239,6 +330,9 @@ class Fm2App : public rex::app::TitleApp {
     if (preferences.fullscreen && fullscreen.GetLayer() <= rex::SettingLayer::kTitle) {
       REX_TRY_VOID(fullscreen.SetText(rex::SettingLayer::kTitle, "true"));
     }
+    if (preferences.stretch && REX_SETTINGS().Find(kLetterbox)) {
+      REX_TRY_VOID(REX_SETTINGS().SetText(rex::SettingLayer::kTitle, kLetterbox, "false"));
+    }
     if (preferences.experimental_120hz) {
       // Treat the three settings as one profile. Do not mix it with explicit overrides.
       auto& settings = REX_SETTINGS();
@@ -259,13 +353,23 @@ class Fm2App : public rex::app::TitleApp {
             [](rex::ui::IUISystem& ui) -> std::unique_ptr<rex::ui::IDialog> {
               return std::make_unique<PcSettingsDialog>(ui);
             }},
+        rex::ui::OverlayConfig{
+            kPerformanceHud, {}, [](rex::ui::IUISystem&) -> std::unique_ptr<rex::ui::IDialog> {
+              return std::make_unique<PerformanceHud>();
+            }},
     };
-    return GetUI().AddOverlays(overlays);
+    display_menu_graphics = &GetGraphics();
+    REX_TRY_VOID(GetUI().AddOverlays(overlays));
+    if (preferences.performance_hud) {
+      GetUI().ShowOverlay(kPerformanceHud, true);
+    }
+    return rex::Ok();
   }
 
   void OnShutdown() override {
     TitleApp::OnShutdown();
     display_menu_ui = nullptr;
+    display_menu_graphics = nullptr;
   }
 
   rex::Result<void> OnTitleLaunch(rex::kernel::TitleRuntime& title) override {
