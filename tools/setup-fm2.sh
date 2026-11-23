@@ -59,6 +59,7 @@ if [ ! -e private/disc ]; then
 fi
 python3 tools/configure_smoke.py --check-xex private/disc/default.xex
 python3 tools/prepare_strings.py private/disc
+python3 tools/prepare_display_menu.py private/disc private/display-menu
 REXGLUE_SDK="$sdk" sh tools/build-fm2.sh
 sh tools/run-fm2.sh --check
 printf '%s\n' 'Setup complete. Launch with: sh tools/run-fm2.sh'

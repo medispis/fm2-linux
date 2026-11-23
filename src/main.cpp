@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <array>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -12,13 +13,46 @@
 #include <rex/filesystem/file_system.h>
 #include <rex/kernel/title_paths.h>
 #include <rex/kernel/title_runtime.h>
+#include <rex/logging/log_category.h>
 #include <rex/path_settings.h>
+#include <rex/ppc/hook.h>
 #include <rex/settings_registry.h>
 #include <rex/ui/ui_system.h>
 
 #include "generated/default/fm2_init.h"
 
 namespace {
+
+struct DisplayMenuFlow {
+  std::string stock;
+  std::string updated;
+};
+
+DisplayMenuFlow display_menu_flow;
+rex::ui::IUISystem* display_menu_ui = nullptr;
+constexpr std::size_t kStockOptionsSize = 33679;
+
+DisplayMenuFlow ReadDisplayMenuFlow(const std::filesystem::path& game_root) {
+  const auto read = [](const std::filesystem::path& path) {
+    std::ifstream input(path, std::ios::binary);
+    std::string data(kStockOptionsSize + 1, '\0');
+    input.read(data.data(), data.size());
+    const auto size = input.gcount();
+    if (!input.eof() || input.bad() || size == 0) {
+      return std::string{};
+    }
+    data.resize(static_cast<std::size_t>(size));
+    return data;
+  };
+  const auto folder = game_root.parent_path() / "display-menu";
+  auto stock = read(folder / "stock.xml");
+  auto updated = read(folder / "options.xml");
+  if (stock.size() != kStockOptionsSize || updated.empty() || updated.size() > stock.size() ||
+      updated.find('\0') != std::string::npos) {
+    return {};
+  }
+  return {std::move(stock), std::move(updated)};
+}
 
 std::filesystem::path PcSettingsPath() {
   return REX_PATHS().config_file.Get().parent_path() / "fm2-pc-settings.txt";
@@ -42,6 +76,22 @@ PcPreferences ReadPcPreferences() {
   return preferences;
 }
 
+bool WritePcPreferences(const PcPreferences& preferences) {
+  const auto path = PcSettingsPath();
+  auto pending = path;
+  pending += ".tmp";
+  std::ofstream stream(pending, std::ios::trunc);
+  stream << (preferences.fullscreen ? "fullscreen=true\n" : "fullscreen=false\n")
+         << (preferences.experimental_120hz ? "refresh_hz=120\n" : "refresh_hz=60\n");
+  stream.close();
+  if (!stream) {
+    return false;
+  }
+  std::error_code error;
+  std::filesystem::rename(pending, path, error);
+  return !error;
+}
+
 constexpr std::array<std::pair<std::string_view, std::string_view>, 3> kExperimentalTiming{{
     {"ui.video_mode_refresh_rate", "120"},
     {"gpu.vsync", "true"},
@@ -54,6 +104,11 @@ class PcSettingsDialog final : public rex::ui::DialogBase {
       : ui_(ui), preferences_(ReadPcPreferences()) {}
 
   bool WantsExclusiveInput() const override { return true; }
+
+  void OnShow() override {
+    preferences_ = ReadPcPreferences();
+    status_.clear();
+  }
 
   bool Draw(ImGuiIO&) override {
     bool open = !ImGui::IsKeyPressed(ImGuiKey_Escape, false);
@@ -108,22 +163,7 @@ class PcSettingsDialog final : public rex::ui::DialogBase {
   }
 
   void Save(PcPreferences preferences) {
-    const auto path = PcSettingsPath();
-    auto pending = path;
-    pending += ".tmp";
-    {
-      std::ofstream stream(pending, std::ios::trunc);
-      stream << (preferences.fullscreen ? "fullscreen=true\n" : "fullscreen=false\n")
-             << (preferences.experimental_120hz ? "refresh_hz=120\n" : "refresh_hz=60\n");
-      stream.close();
-      if (!stream) {
-        status_ = "Could not save PC settings.";
-        return;
-      }
-    }
-    std::error_code error;
-    std::filesystem::rename(pending, path, error);
-    if (error) {
+    if (!WritePcPreferences(preferences)) {
       status_ = "Could not save PC settings.";
       return;
     }
@@ -138,6 +178,49 @@ class PcSettingsDialog final : public rex::ui::DialogBase {
 };
 
 }  // namespace
+
+extern "C" REX_FUNC(__imp__sub_824CF490);
+extern "C" REX_FUNC(__imp__sub_824B6DB8);
+
+REX_HOOK_RAW(sub_824CF490) {
+  const auto& flow = display_menu_flow;
+  // The European title's flow loader passes an owned, terminated XML buffer here.
+  if (ctx.lr == 0x825e1158 && ctx.r4.u32 && !flow.stock.empty()) {
+    auto* text = reinterpret_cast<char*>(base + ctx.r4.u32);
+    if (std::strncmp(text, flow.stock.c_str(), flow.stock.size() + 1) == 0) {
+      std::memcpy(text, flow.updated.c_str(), flow.updated.size() + 1);
+      REXLOG_INFO("Installed native FM2 Display & Performance flow");
+    }
+  }
+  __imp__sub_824CF490(ctx, base);
+}
+
+REX_HOOK_RAW(sub_824B6DB8) {
+  // The native UI event handler converts the Lua event name to a string at this call site.
+  const bool from_menu_event = ctx.lr == 0x825f24d8;
+  __imp__sub_824B6DB8(ctx, base);
+  if (!from_menu_event || !display_menu_ui || !ctx.r3.u32) {
+    return;
+  }
+  constexpr char kToggle[] = "FM2ToggleFullscreen";
+  const auto* event = reinterpret_cast<const char*>(base + ctx.r3.u32);
+  if (std::strncmp(event, kToggle, sizeof(kToggle)) != 0) {
+    return;
+  }
+  auto* ui = display_menu_ui;
+  ui->PostTask([ui] {
+    auto preferences = ReadPcPreferences();
+    preferences.fullscreen = !ui->GetSettings().fullscreen.Get();
+    auto changed = REX_SETTINGS().SetText("ui.fullscreen", preferences.fullscreen ? "true" : "false");
+    if (!changed) {
+      REXLOG_WARN("Native Display & Performance: {}", changed.error().message);
+    } else if (!WritePcPreferences(preferences)) {
+      REXLOG_WARN("Native Display & Performance: could not save window mode");
+    } else {
+      REXLOG_INFO("Native Display & Performance: saved fullscreen={}", preferences.fullscreen);
+    }
+  });
+}
 
 class Fm2App : public rex::app::TitleApp {
  public:
@@ -180,9 +263,16 @@ class Fm2App : public rex::app::TitleApp {
     return GetUI().AddOverlays(overlays);
   }
 
+  void OnShutdown() override {
+    TitleApp::OnShutdown();
+    display_menu_ui = nullptr;
+  }
+
   rex::Result<void> OnTitleLaunch(rex::kernel::TitleRuntime& title) override {
     auto& fs = title.GetFileSystem();
     const auto root = title.GetTitlePaths().game_root.Get();
+    display_menu_flow = ReadDisplayMenuFlow(root);
+    display_menu_ui = &GetUI();
     std::map<std::string, std::string> aliases;
     for (const auto& entry :
          std::filesystem::recursive_directory_iterator(root / "Media" / "Audio")) {

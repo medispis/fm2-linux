@@ -27,6 +27,11 @@ if [ "${1-}" = --check ]; then
         printf '%s\n' 'Missing the Vulkan runtime. Rerun setup.' >&2
         exit 1
     fi
+    if [ ! -s "$root/private/display-menu/stock.xml" ] ||
+        [ ! -s "$root/private/display-menu/options.xml" ]; then
+        printf '%s\n' 'Missing native display menu data. Rerun setup.' >&2
+        exit 1
+    fi
     for file in "$executable" "$root/build/smoke-native"/librex*.so; do
         dependencies=$(ldd "$file") || exit 1
         if printf '%s\n' "$dependencies" | grep -F 'not found'; then

@@ -86,6 +86,13 @@ class RunFm2Tests(unittest.TestCase):
         self.assertEqual(missing.returncode, 1)
         self.assertIn("Missing the Vulkan runtime", missing.stderr)
         (self.executable.parent / "librexgpu-xenos-vulkan.so").touch()
+        missing = self.launch("--check", env=env)
+        self.assertEqual(missing.returncode, 1)
+        self.assertIn("Missing native display menu data", missing.stderr)
+        menu = self.root / "private" / "display-menu"
+        menu.mkdir()
+        for name in ("stock.xml", "options.xml"):
+            (menu / name).write_text("<flow/>\n")
         result = self.launch("--check", env=env)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
