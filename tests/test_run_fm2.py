@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import shutil
+import socket
 import subprocess
 import tempfile
 import unittest
@@ -37,6 +38,27 @@ class RunFm2Tests(unittest.TestCase):
         self.assertNotIn("--gpu.vsync", result.stdout)
         self.assertNotIn("--gpu.vulkan.unsynced_present", result.stdout)
         self.assertIn("--hid.mnk_mode=true", result.stdout.splitlines())
+
+    def test_audio_prefers_local_pulse_server_and_preserves_overrides(self):
+        self.executable.write_text(
+            '#!/bin/sh\nprintf "%s\\n" "${SDL_AUDIO_DRIVER-unset}"\n'
+        )
+        runtime = self.root / "runtime"
+        pulse = runtime / "pulse"
+        pulse.mkdir(parents=True)
+        env = {**os.environ, "XDG_RUNTIME_DIR": str(runtime)}
+        env.pop("SDL_AUDIO_DRIVER", None)
+        self.assertEqual(self.launch(env=env).stdout.strip(), "unset")
+        with socket.socket(socket.AF_UNIX) as server:
+            server.bind(str(pulse / "native"))
+            self.assertEqual(
+                self.launch(env=env).stdout.strip(), "pulseaudio,pipewire,alsa"
+            )
+            for override in ("pipewire", ""):
+                with self.subTest(override=override):
+                    result = self.launch(env={**env, "SDL_AUDIO_DRIVER": override})
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout.strip(), override)
 
     def test_experimental_mode_sets_guest_refresh_and_preserves_extra_options(self):
         result = self.launch("--experimental-120fps", "--hid.mnk_mode=true")

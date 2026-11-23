@@ -10,6 +10,7 @@ applying patches or rebuilding components by hand.
 | A required tool or shared library is missing | Install the missing system prerequisite, then rerun setup with your ISO. Setup does not install system packages. If the failure persists, keep the first relevant error from setup. |
 | The native Display & Performance entry is missing after updating | Rerun setup. It generates the menu data locally from the supported disc. F10 can still open the separate PC Settings panel. |
 | The screen tears, motion stalls, or audio sounds wrong in 120 Hz mode | Try the original timing first. `sh tools/run-fm2.sh --original-timing` does not overwrite the saved preference. If the issue goes away, set **Original (60 Hz)** in the menu before restarting. |
+| Audio crackles, cuts out, or sounds distorted at 60 Hz | The launcher prefers PulseAudio when it detects a local PulseAudio-compatible socket, including PipeWire's PulseAudio service. To compare backends for one launch, set `SDL_AUDIO_DRIVER=pulseaudio` or `SDL_AUDIO_DRIVER=pipewire` before `sh tools/run-fm2.sh`. Set `SDL_AUDIO_DRIVER=` to use SDL's automatic selection. |
 | The game starts fullscreen and you cannot reach Options | Try `sh tools/run-fm2.sh --ui.fullscreen=false` for one launch. Use the native Window Mode or F10 controls to save your preferred mode. |
 
 To check the disc executable, generated menu files, and shared-library

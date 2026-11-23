@@ -71,6 +71,13 @@ if [ -n "$timing" ]; then
 fi
 
 mkdir -p "$state"
+# The native PipeWire backend can produce broken audio on some systems.
+# Prefer the local PulseAudio server (including pipewire-pulse) if available.
+if [ "${SDL_AUDIO_DRIVER+x}" != x ] && [ -n "${XDG_RUNTIME_DIR-}" ] &&
+   [ -S "$XDG_RUNTIME_DIR/pulse/native" ]; then
+    SDL_AUDIO_DRIVER=pulseaudio,pipewire,alsa
+    export SDL_AUDIO_DRIVER
+fi
 # Give the audio producer more room to absorb shader and scheduling stalls.
 : "${SDL_AUDIO_DEVICE_SAMPLE_FRAMES:=1024}"
 export SDL_AUDIO_DEVICE_SAMPLE_FRAMES
