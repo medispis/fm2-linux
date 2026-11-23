@@ -1,7 +1,9 @@
 # Forza Motorsport 2 for Linux
 
-A native Linux x86-64 recompilation of Forza Motorsport 2. It supports
-the unpatched European disc (`4D5307EA`, media ID `3E3180AE`, version `0.0.0.3`).
+A native Linux x86-64 recompilation of Forza Motorsport 2 using Vulkan.
+It supports the unpatched European disc (`4D5307EA`, media ID `3E3180AE`,
+version `0.0.0.3`). Bring your own disc image; this repository does not
+include game files or a prebuilt game.
 
 ## Quick start
 
@@ -20,43 +22,19 @@ You need Python 3.11+, Clang 20+, CMake 3.25+, Ninja, Git, curl, bsdtar,
 and the [ReXGlue Linux system prerequisites](https://docs.rexglue.com/getting-started/#install-the-tools).
 Setup does not install system packages.
 
-For keyboard controls, run `sh tools/run-fm2.sh --hid.mnk_mode=true`.
-Return is Start, Space is A, Backspace is B, WASD is the left stick,
-E accelerates, and Q brakes.
+## Project status
 
-Open **Options → Display & Performance** in FM2's native menu. Window mode,
-aspect ratio, and the performance HUD apply immediately. **Original** aspect
-fits the image without distortion; **Stretch** fills the window. The HUD
-shows guest FPS and frame time, not distinct frames displayed. **Restore
-Display Defaults** asks for confirmation. These settings are saved separately
-from career progress. **F10** opens the same settings in a separate panel.
+Career mode and audio playback were confirmed on the local build. **Options
+→ Display & Performance** integrates the port's display controls into FM2's
+native menu. Original 60 Hz timing is the default; **120 Hz is experimental**,
+not a verified 120 FPS mode.
 
-The local build runs with Vulkan. Career mode and audio playback were
-confirmed by the user. Game files, generated code, and saves are not
-included in this repository.
-
-## Experimental refresh rate
-
-Use **Refresh Rate** in the native menu, or **Frame Rate (next launch)** in
-F10 PC Settings. Restart to apply the choice. The default is **Original (60 Hz)**.
-Both menus show the active guest rate and the saved choice separately.
-Launch overrides change the active rate without rewriting the saved choice.
-The experimental mode requests 120 Hz guest timing and lets Vulkan present
-without waiting for the monitor where supported.
-This can cause tearing. Local startup measurements showed about 120 guest
-swaps per second, up from about 60. Swaps can repeat images and do not
-measure distinct frames shown on the display. In the 3D main menu on the
-test machine, both modes produced about 28 swaps per second with draw
-work. The higher refresh setting alone did not speed up that scene.
-On the test machine's AMD Renoir GPU, GPU utilization stayed at 99% in
-both modes. Requesting 640×480 did not lower the 1280×720 swap-source
-resolution in this menu.
-
-This is not a verified 120 FPS mode. A 120 Hz or faster display is needed
-to verify visible motion at that rate. Race timing, physics, replays,
-and audio are not validated in this mode. To override the saved setting for
-one launch, use `sh tools/run-fm2.sh --original-timing` or
-`sh tools/run-fm2.sh --experimental-120fps`.
+- [Player guide](docs/player-guide.md): controls, display settings, refresh
+  overrides, and save locations.
+- [Troubleshooting](docs/troubleshooting.md): setup failures, launch recovery,
+  and what to include in a bug report.
+- [Contributing](CONTRIBUTING.md): project layout, verification, and what
+  must stay out of commits.
 
 ## How this project was made
 
