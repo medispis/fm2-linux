@@ -37,6 +37,11 @@ def display_branch():
         for i, (key, label, _, _, _) in enumerate(DISPLAY_OPTIONS)
     )
     def popup_message(key, description):
+        if key == "FM2WindowMode":
+            return '''
+        local status = UI:fireEvent("FM2ReadWindowStatus")
+        if type(status) ~= "string" then status = "Window mode unavailable." end
+        PopupMessage = status'''
         if key == "FM2RefreshRate":
             return r'''
         local status = UI:fireEvent("FM2ReadRefreshStatus")

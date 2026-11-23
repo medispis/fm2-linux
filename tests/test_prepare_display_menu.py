@@ -44,6 +44,9 @@ class PrepareDisplayMenuTests(unittest.TestCase):
             self.assertIn(f'UI:fireEvent("{action}")', popup.text)
             self.assertIn('UI:fireEvent("FM2DisplayBack")', popup.text)
             self.assertNotIn("dofile", popup.text)
+            if key == "FM2WindowMode":
+                self.assertIn('UI:fireEvent("FM2ReadWindowStatus")', popup.text)
+                self.assertIn("Window mode unavailable.", popup.text)
             if key == "FM2RefreshRate":
                 self.assertIn('UI:fireEvent("FM2ReadRefreshStatus")', popup.text)
                 self.assertIn("Restart to apply", popup.text)

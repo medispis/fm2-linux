@@ -270,20 +270,29 @@ REX_IMPORT(sub_824B6DB8, GuestLuaString, u32(u32, i32, u32));
 REX_IMPORT(sub_824B70F8, GuestLuaPushString, void(u32, u32));
 
 REX_HOOK_RAW(sub_825F4EE8) {
-  // UI:fireEvent normally dispatches a string event. This read-only query returns
-  // a string without advancing the native flow.
-  constexpr char kRefreshStatus[] = "FM2ReadRefreshStatus";
+  // These read-only queries return text without advancing the native flow.
   constexpr i32 kLuaString = 4;
   const u32 lua = ctx.r3.u32;
   if (display_menu_ui && lua && GuestLuaType(ctx, base, lua, 2) == kLuaString) {
     const u32 address = GuestLuaString(ctx, base, lua, 2, 0);
-    if (address && std::strncmp(reinterpret_cast<const char*>(base + address),
-                               kRefreshStatus, sizeof(kRefreshStatus)) == 0) {
-      const auto status = RefreshStatus(ReadPcPreferences());
-      rex::ppc::StackFrame frame(ctx, base);
-      GuestLuaPushString(ctx, base, lua, frame.PushString(status).GetGuestAddress());
-      ctx.r3.u64 = 1;
-      return;
+    if (address) {
+      const auto* event = reinterpret_cast<const char*>(base + address);
+      constexpr char kRefreshStatus[] = "FM2ReadRefreshStatus";
+      constexpr char kWindowStatus[] = "FM2ReadWindowStatus";
+      std::string status;
+      if (std::strncmp(event, kRefreshStatus, sizeof(kRefreshStatus)) == 0) {
+        status = RefreshStatus(ReadPcPreferences());
+      } else if (std::strncmp(event, kWindowStatus, sizeof(kWindowStatus)) == 0) {
+        status = display_menu_ui->GetSettings().fullscreen.Get()
+                     ? "Current window mode: Fullscreen"
+                     : "Current window mode: Windowed";
+      }
+      if (!status.empty()) {
+        rex::ppc::StackFrame frame(ctx, base);
+        GuestLuaPushString(ctx, base, lua, frame.PushString(status).GetGuestAddress());
+        ctx.r3.u64 = 1;
+        return;
+      }
     }
   }
   __imp__sub_825F4EE8(ctx, base);
