@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <charconv>
 #include <cstring>
 #include <filesystem>
 #include <format>
@@ -40,7 +41,7 @@ rex::gpu::IGraphicsSystem* display_menu_graphics = nullptr;
 double active_guest_refresh_hz = 60.0;
 int launch_render_scale_x = 1;
 int launch_render_scale_y = 1;
-bool launch_lower_resolution = false;
+u32 launch_guest_width = 1280;
 std::atomic_bool lower_resolution_applied{false};
 constexpr std::string_view kPerformanceHud = "fm2_performance_hud";
 constexpr std::size_t kStockOptionsSize = 33679;
@@ -71,19 +72,41 @@ std::filesystem::path PcSettingsPath() {
   return REX_PATHS().config_file.Get().parent_path() / "fm2-pc-settings.txt";
 }
 
-enum class RenderResolution { kNative, kLower, k1080p, kDouble };
+struct RenderPreset {
+  u32 guest_width;
+  int scale;
+  const char* label;
 
-constexpr std::array kRenderResolutionNames{
-    "1280x720 (Native)", "960x540 (Experimental)", "1920x1080 (Experimental)",
-    "2560x1440 (Experimental 2x)",
+  constexpr u32 Height() const { return guest_width * 9 / 16 * scale; }
 };
+
+constexpr std::array kRenderPresets{
+    RenderPreset{640, 1, "640x360 (Experimental)"},
+    RenderPreset{800, 1, "800x450 (Experimental)"},
+    RenderPreset{960, 1, "960x540 (Experimental)"},
+    RenderPreset{1120, 1, "1120x630 (Experimental)"},
+    RenderPreset{1280, 1, "1280x720 (Native)"},
+    RenderPreset{800, 2, "1600x900 (Experimental)"},
+    RenderPreset{960, 2, "1920x1080 (Experimental)"},
+    RenderPreset{1120, 2, "2240x1260 (Experimental)"},
+    RenderPreset{1280, 2, "2560x1440 (Experimental)"},
+};
+constexpr std::size_t kNativeRenderPreset = 4;
+static_assert(kRenderPresets[kNativeRenderPreset].Height() == 720);
+constexpr auto kRenderResolutionNames = [] {
+  std::array<const char*, kRenderPresets.size()> names{};
+  for (std::size_t i = 0; i < names.size(); ++i) {
+    names[i] = kRenderPresets[i].label;
+  }
+  return names;
+}();
 
 struct PcPreferences {
   bool fullscreen = false;
   bool experimental_120hz = false;
   bool stretch = false;
   bool performance_hud = false;
-  RenderResolution render_resolution = RenderResolution::kNative;
+  std::size_t render_resolution = kNativeRenderPreset;
 };
 
 PcPreferences ReadPcPreferences() {
@@ -98,14 +121,20 @@ PcPreferences ReadPcPreferences() {
       preferences.stretch = line == "aspect=stretch";
     } else if (line == "performance_hud=true" || line == "performance_hud=false") {
       preferences.performance_hud = line == "performance_hud=true";
-    } else if (line == "render_resolution=720" || line == "render_scale=1") {
-      preferences.render_resolution = RenderResolution::kNative;
-    } else if (line == "render_resolution=540") {
-      preferences.render_resolution = RenderResolution::kLower;
-    } else if (line == "render_resolution=1080") {
-      preferences.render_resolution = RenderResolution::k1080p;
-    } else if (line == "render_resolution=1440" || line == "render_scale=2") {
-      preferences.render_resolution = RenderResolution::kDouble;
+    } else if (line.starts_with("render_resolution=")) {
+      constexpr std::string_view prefix = "render_resolution=";
+      const auto value = std::string_view(line).substr(prefix.size());
+      u32 height = 0;
+      const auto end = value.data() + value.size();
+      const auto [ptr, error] = std::from_chars(value.data(), end, height);
+      const auto preset = std::ranges::find(kRenderPresets, height, &RenderPreset::Height);
+      if (error == std::errc{} && ptr == end && preset != kRenderPresets.end()) {
+        preferences.render_resolution = static_cast<std::size_t>(preset - kRenderPresets.begin());
+      }
+    } else if (line == "render_scale=1") {
+      preferences.render_resolution = kNativeRenderPreset;
+    } else if (line == "render_scale=2") {
+      preferences.render_resolution = kRenderPresets.size() - 1;
     }
   }
   return preferences;
@@ -116,13 +145,12 @@ bool WritePcPreferences(const PcPreferences& preferences) {
   auto pending = path;
   pending += ".tmp";
   std::ofstream stream(pending, std::ios::trunc);
-  constexpr std::array kRenderHeights{720, 540, 1080, 1440};
   stream << (preferences.fullscreen ? "fullscreen=true\n" : "fullscreen=false\n")
          << (preferences.experimental_120hz ? "refresh_hz=120\n" : "refresh_hz=60\n")
          << (preferences.stretch ? "aspect=stretch\n" : "aspect=original\n")
          << (preferences.performance_hud ? "performance_hud=true\n" : "performance_hud=false\n")
          << "render_resolution="
-         << kRenderHeights[static_cast<std::size_t>(preferences.render_resolution)] << '\n';
+         << kRenderPresets[preferences.render_resolution].Height() << '\n';
   stream.close();
   if (!stream) {
     return false;
@@ -138,13 +166,10 @@ std::string RefreshStatus(const PcPreferences& preferences) {
 }
 
 std::string RenderResolutionStatus(const PcPreferences& preferences) {
-  const auto saved = kRenderResolutionNames[static_cast<std::size_t>(preferences.render_resolution)];
-  if (lower_resolution_applied.load()) {
-    return std::format("Launch preset: {}x{}\nSaved: {}", 960 * launch_render_scale_x,
-                       540 * launch_render_scale_y, saved);
-  }
-  return std::format("Launch render scale: {}x by {}x\nSaved: {}", launch_render_scale_x,
-                     launch_render_scale_y, saved);
+  const auto saved = kRenderPresets[preferences.render_resolution].label;
+  const u32 width = lower_resolution_applied.load() ? launch_guest_width : 1280;
+  return std::format("Launch preset: {}x{}\nSaved: {}", width * launch_render_scale_x,
+                     width * 9 / 16 * launch_render_scale_y, saved);
 }
 
 constexpr std::array<std::pair<std::string_view, std::string_view>, 3> kExperimentalTiming{{
@@ -243,7 +268,7 @@ class PcSettingsDialog final : public rex::ui::DialogBase {
       if (ImGui::Combo("Render Resolution (next launch)", &render_resolution,
                        kRenderResolutionNames.data(), kRenderResolutionNames.size())) {
         auto preferences = preferences_;
-        preferences.render_resolution = static_cast<RenderResolution>(render_resolution);
+        preferences.render_resolution = static_cast<std::size_t>(render_resolution);
         Save(preferences);
       }
       ImGui::TextUnformatted(RenderResolutionStatus(preferences_).c_str());
@@ -311,13 +336,12 @@ extern "C" REX_FUNC(__imp__sub_825F4EE8);
 extern "C" REX_FUNC(__imp__sub_825AE450);
 
 REX_HOOK_RAW(sub_825AE450) {
-  if (launch_lower_resolution && !lower_resolution_applied.load() &&
+  if (launch_guest_width != 1280 && !lower_resolution_applied.load() &&
       ctx.lr == 0x825b3808 && ctx.r7.u32 == 0) {
     // Profile 0 describes the European title's render dimensions and its
     // three horizontal EDRAM strips. Both must change together.
     constexpr u32 kProfile = 0x829a2ba0;
     constexpr std::array<u32, 4> kNativeEdges{0, 256, 512, 720};
-    constexpr std::array<u32, 4> kLowerEdges{0, 192, 384, 540};
     bool matches = REX_LOAD_U32(kProfile + 4) == 1280 &&
                    REX_LOAD_U32(kProfile + 8) == 720 &&
                    REX_LOAD_U32(kProfile + 12) == 2 && REX_LOAD_U32(kProfile + 16) == 3;
@@ -327,16 +351,17 @@ REX_HOOK_RAW(sub_825AE450) {
                 REX_LOAD_U32(box + 8) == 1280 && REX_LOAD_U32(box + 12) == kNativeEdges[i + 1];
     }
     if (matches) {
-      REX_STORE_U32(kProfile + 4, 960);
-      REX_STORE_U32(kProfile + 8, 540);
+      REX_STORE_U32(kProfile + 4, launch_guest_width);
+      REX_STORE_U32(kProfile + 8, launch_guest_width * 9 / 16);
       for (u32 i = 0; i < 3; ++i) {
         const u32 box = kProfile + 32 + i * 16;
-        REX_STORE_U32(box + 4, kLowerEdges[i]);
-        REX_STORE_U32(box + 8, 960);
-        REX_STORE_U32(box + 12, kLowerEdges[i + 1]);
+        REX_STORE_U32(box + 4, kNativeEdges[i] * launch_guest_width / 1280);
+        REX_STORE_U32(box + 8, launch_guest_width);
+        REX_STORE_U32(box + 12, kNativeEdges[i + 1] * launch_guest_width / 1280);
       }
       lower_resolution_applied.store(true);
-      REXLOG_INFO("FM2: applied 960x540 render profile (4x MSAA, three strips)");
+      REXLOG_INFO("FM2: applied {}x{} render profile (4x MSAA, three strips)",
+                  launch_guest_width, launch_guest_width * 9 / 16);
     } else {
       REXLOG_WARN("FM2: unexpected 3D render profile layout; keeping stock guest profile");
     }
@@ -430,8 +455,7 @@ REX_HOOK_RAW(sub_824B6DB8) {
       case Action::kHud: preferences.performance_hud = !before.performance_hud; break;
       case Action::kRefresh: preferences.experimental_120hz = !before.experimental_120hz; break;
       case Action::kRenderResolution:
-        preferences.render_resolution = static_cast<RenderResolution>(
-            (static_cast<std::size_t>(before.render_resolution) + 1) % kRenderResolutionNames.size());
+        preferences.render_resolution = (before.render_resolution + 1) % kRenderPresets.size();
         break;
       case Action::kRestore: preferences = {}; break;
     }
@@ -443,7 +467,7 @@ REX_HOOK_RAW(sub_824B6DB8) {
                   "refresh={}, render resolution={}",
                   preferences.fullscreen, preferences.stretch, preferences.performance_hud,
                   preferences.experimental_120hz ? 120 : 60,
-                  kRenderResolutionNames[static_cast<std::size_t>(preferences.render_resolution)]);
+                  kRenderPresets[preferences.render_resolution].label);
     }
   });
 }
@@ -484,14 +508,15 @@ class Fm2App : public rex::app::TitleApp {
     auto& graphics_settings = GetGraphics().GetSettings();
     auto& scale_x = graphics_settings.resolution_scale_x;
     auto& scale_y = graphics_settings.resolution_scale_y;
+    launch_guest_width = 1280;
     if (scale_x.GetLayer() <= rex::SettingLayer::kTitle &&
         scale_y.GetLayer() <= rex::SettingLayer::kTitle) {
-      launch_lower_resolution = preferences.render_resolution == RenderResolution::kLower ||
-                                preferences.render_resolution == RenderResolution::k1080p;
-      if (preferences.render_resolution == RenderResolution::kDouble ||
-          preferences.render_resolution == RenderResolution::k1080p) {
-        REX_TRY_VOID(scale_x.SetText(rex::SettingLayer::kTitle, "2"));
-        REX_TRY_VOID(scale_y.SetText(rex::SettingLayer::kTitle, "2"));
+      const auto& preset = kRenderPresets[preferences.render_resolution];
+      launch_guest_width = preset.guest_width;
+      if (preset.scale != 1) {
+        const auto scale = std::to_string(preset.scale);
+        REX_TRY_VOID(scale_x.SetText(rex::SettingLayer::kTitle, scale));
+        REX_TRY_VOID(scale_y.SetText(rex::SettingLayer::kTitle, scale));
       }
     }
     launch_render_scale_x = scale_x.Get();

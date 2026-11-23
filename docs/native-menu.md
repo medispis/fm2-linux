@@ -91,8 +91,11 @@ while retaining 4× MSAA. The Arcade menu trace confirmed a 960×540
 viewport, 960×192 strips, and a 960×540 swap source. The 1080p preset
 uses that profile with Vulkan draw scaling set to 2× on both axes;
 the Arcade trace confirmed a 1920×1080 viewport and swap source.
-The hook runs only
-for the matching European call site; no files on the disc are changed.
+The same mechanism supports the menu-tested 640-, 800-, and 1120-pixel
+guest widths and 2× rendering on the 800- and 1120-pixel profiles.
+The preset table selects exact sizes rather than rounding arbitrary
+dimensions. The hook runs only for the matching European call site;
+no files on the disc are changed.
 
 ## Changing this code
 

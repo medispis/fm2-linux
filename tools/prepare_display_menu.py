@@ -35,8 +35,8 @@ DISPLAY_OPTIONS = (
     ("FM2RefreshRate", "Refresh Rate", "Switch between Original (60 Hz) and Experimental "
      "(120 Hz). Restart required. 120 Hz may tear and does not guarantee 120 FPS.",
      "FM2ToggleRefresh", "Toggle Refresh Rate"),
-    ("FM2RenderResolution", "Render Resolution", "Choose native or an experimental render "
-     "resolution (540p, 1080p, 1440p). Restart required.", "FM2ToggleRenderResolution",
+    ("FM2RenderResolution", "Render Resolution", "Choose a 16:9 render resolution from "
+     "360p to 1440p. Only 720p is native. Restart required.", "FM2ToggleRenderResolution",
      "Next Resolution"),
     ("FM2DisplayDefaults", "Restore Display Defaults", "Restore the port's display settings? "
      "Refresh rate changes after restart.", "FM2RestoreDisplay", "Restore Defaults"),

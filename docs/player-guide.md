@@ -28,7 +28,7 @@ the same preferences in a separate PC Settings panel.
 | Aspect Ratio | **Original** fits the image without distortion. **Stretch** fills the window. Neither changes the game's internal render resolution. |
 | Performance HUD | Shows guest FPS and average frame time. It does not count distinct frames on the display. |
 | Refresh Rate | Switches the saved choice between **Original (60 Hz)** and **Experimental (120 Hz)**. Restart to apply it. The popup shows both the active guest rate and the saved choice. |
-| Render Resolution | Cycles through **1280×720 (Native)**, **960×540**, **1920×1080**, and **2560×1440**. Non-native choices are experimental. Restart to apply. It does not resize the window. |
+| Render Resolution | Cycles through the supported internal resolutions. Use F10 to pick a size directly. Restart to apply. It does not resize the window. |
 | Restore Display Defaults | Requires confirmation. Resets the port's display preferences, not your career or stock FM2 options. Refresh rate resets on restart. |
 
 ## Experimental 120 Hz
@@ -45,11 +45,13 @@ did not reduce the menu's 1280×720 swap source.
 
 ## Render resolution
 
-**960×540** lowers the actual 3D workload; the Arcade menu was verified
-at this resolution with 4× MSAA. **1920×1080** uses ReXGlue's 2× draw
-scaling on the 540p guest profile; **2560×1440** uses 2× on the native
-720p profile. The higher presets can be slower. Non-native presets
-have not been validated in races. To override
+Available sizes are **640×360, 800×450, 960×540, 1120×630, 1280×720
+(Native), 1600×900, 1920×1080, 2240×1260, and 2560×1440**. These are
+exact 16:9 choices; arbitrary dimensions are not supported.
+
+Lower choices reduce the main scene's render dimensions; the higher
+choices use ReXGlue's 2× draw scaling and can be slower. Non-native
+choices are experimental and have not been validated in races. To override
 the saved choice for a single launch, use `sh tools/run-fm2.sh --native-rendering`.
 
 Race timing, physics, replays, and audio have not been validated at 120 Hz.
