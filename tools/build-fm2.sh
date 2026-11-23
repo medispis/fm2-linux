@@ -39,7 +39,8 @@ fi
 python3 tools/configure_smoke.py
 
 for patch in rexglue-async-read.patch rexglue-empty-resolve.patch rexglue-unsynced-present.patch \
-             rexglue-present-until-launch.patch rexglue-refresh-until-launch.patch; do
+             rexglue-present-until-launch.patch rexglue-refresh-until-launch.patch \
+             rexglue-render-scale-until-launch.patch; do
     patch="$root/patches/$patch"
     # The follow-up patch changes a line added by unsynced-present.
     if [ "$patch" = "$root/patches/rexglue-unsynced-present.patch" ] &&

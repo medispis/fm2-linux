@@ -54,7 +54,7 @@ the native page.
 
 - `fm2-pc-settings.txt` lives next to the ReXGlue configuration file.
   With the standard launcher, this is `private/fm2-state/`. It stores
-  `fullscreen`, `refresh_hz`, `aspect`, and `performance_hud`.
+  `fullscreen`, `refresh_hz`, `aspect`, `performance_hud`, and `render_resolution`.
   Neither the native page nor F10 writes these settings into career saves.
 - The writer replaces the preference file by renaming a temporary file.
   The older fullscreen/refresh file format still loads; missing
@@ -67,6 +67,32 @@ the native page.
   guest rate is captured at title launch and displayed separately.
 - The two timing flags supply a complete timing override for one
   launch. They do not rewrite `fm2-pc-settings.txt`.
+- Render Resolution saves the guest render profile or matched Vulkan
+  draw scale for the next launch. The popup reports the launch scale and saved
+  preset separately. `--native-rendering` forces 1× on both axes for one launch.
+
+### Below-native resolution investigation
+
+Changing the reported guest video mode to 960×540 did not change the
+1280×720 swap source. A local prototype changed FM2's guest device
+parameters to 960×540 instead. It changed some Vulkan color and depth
+allocations to 960 pixels wide, but the 1280×512 MSAA targets and the
+1280×720 swap source remained. The intro appeared cropped. A follow-up
+trace reached the same 3D Arcade menu in both variants. Both used a
+1280-pixel surface pitch and 4× MSAA for the main scene, with 1280-pixel-wide
+resolves to a 1280×720 destination. The menu remained correctly framed
+because its rendering path kept the original dimensions. The guest
+device hook alone cannot provide a 540p mode.
+
+The implemented 540p preset updates profile 0 before FM2 allocates its
+3D targets. It verifies the stock profile and then scales the three
+horizontal strip boundaries from `0, 256, 512, 720` to `0, 192, 384, 540`
+while retaining 4× MSAA. The Arcade menu trace confirmed a 960×540
+viewport, 960×192 strips, and a 960×540 swap source. The 1080p preset
+uses that profile with Vulkan draw scaling set to 2× on both axes;
+the Arcade trace confirmed a 1920×1080 viewport and swap source.
+The hook runs only
+for the matching European call site; no files on the disc are changed.
 
 ## Changing this code
 

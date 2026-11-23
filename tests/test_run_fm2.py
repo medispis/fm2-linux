@@ -118,7 +118,7 @@ class RunFm2Tests(unittest.TestCase):
         art = self.root / "private/disc/Media/UI/Textures/P_Map/P_OPT"
         art.mkdir(parents=True)
         for category in ("FM2WindowMode", "FM2AspectMode", "FM2PerformanceHud",
-                         "FM2RefreshRate", "FM2DisplayDefaults"):
+                         "FM2RefreshRate", "FM2RenderResolution", "FM2DisplayDefaults"):
             (art / f"P_OPT_ICON_{category}.xds").write_bytes(b"art")
         missing = self.launch("--check", env=env)
         self.assertEqual(missing.returncode, 1)
@@ -131,3 +131,16 @@ class RunFm2Tests(unittest.TestCase):
             "FM2 launch files and shared libraries verified; the game was not started.",
         )
         self.assertFalse((self.root / "private" / "fm2-state").exists())
+
+    def test_native_rendering_override_pairs_with_timing_override(self):
+        for args in (("--native-rendering", "--original-timing"),
+                     ("--original-timing", "--native-rendering")):
+            with self.subTest(args=args):
+                result = self.launch(*args)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("--ui.video_mode_refresh_rate=60", result.stdout.splitlines())
+                for axis in ("x", "y"):
+                    self.assertIn(f"--gpu.resolution_scale_{axis}=1", result.stdout.splitlines())
+        conflict = self.launch("--native-rendering", "--gpu.resolution_scale_x=2")
+        self.assertEqual(conflict.returncode, 2)
+        self.assertIn("render scale overrides", conflict.stderr)

@@ -7,10 +7,24 @@ disc="$root/private/disc"
 state="$root/private/fm2-state"
 
 timing=
-case "${1-}" in
-    --experimental-120fps) timing=120; shift ;;
-    --original-timing) timing=60; shift ;;
-esac
+native_rendering=false
+while :; do
+    case "${1-}" in
+        --experimental-120fps|--original-timing)
+            if [ -n "$timing" ]; then
+                printf '%s\n' 'Choose only one timing preset.' >&2
+                exit 2
+            fi
+            case "$1" in
+                --experimental-120fps) timing=120 ;;
+                --original-timing) timing=60 ;;
+            esac
+            ;;
+        --native-rendering) native_rendering=true ;;
+        *) break ;;
+    esac
+    shift
+done
 
 if [ ! -x "$executable" ] || [ ! -f "$disc/default.xex" ] || [ ! -d "$disc/Media" ]; then
     printf '%s\n' 'Build FM2 and extract the disc first. See README.md.' >&2
@@ -33,7 +47,7 @@ if [ "${1-}" = --check ]; then
         exit 1
     fi
     for category in FM2Display FM2WindowMode FM2AspectMode FM2PerformanceHud \
-                    FM2RefreshRate FM2DisplayDefaults; do
+                    FM2RefreshRate FM2RenderResolution FM2DisplayDefaults; do
         if [ ! -s "$disc/Media/UI/Textures/P_Map/P_OPT/P_OPT_ICON_$category.xds" ]; then
             printf '%s\n' 'Missing native display menu artwork. Rerun setup.' >&2
             exit 1
@@ -68,6 +82,19 @@ if [ -n "$timing" ]; then
     else
         set -- --ui.video_mode_refresh_rate=60 --gpu.vsync=true --gpu.vulkan.unsynced_present=false "$@"
     fi
+fi
+
+if [ "$native_rendering" = true ]; then
+    for arg do
+        option=${arg%%=*}
+        case "$option" in
+            --gpu.resolution_scale_x|--gpu.resolution_scale_y|--resolution_scale_x|--resolution_scale_y)
+                printf '%s\n' 'Do not combine --native-rendering with render scale overrides.' >&2
+                exit 2
+                ;;
+        esac
+    done
+    set -- --gpu.resolution_scale_x=1 --gpu.resolution_scale_y=1 "$@"
 fi
 
 mkdir -p "$state"

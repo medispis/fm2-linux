@@ -55,6 +55,10 @@ class PrepareDisplayMenuTests(unittest.TestCase):
             if key == "FM2RefreshRate":
                 self.assertIn('UI:fireEvent("FM2ReadRefreshStatus")', popup.text)
                 self.assertIn("Restart to apply", popup.text)
+            if key == "FM2RenderResolution":
+                self.assertIn('UI:fireEvent("FM2ReadRenderResolution")', popup.text)
+                self.assertIn("Restart to apply.", popup.text)
+                self.assertIn("Next Resolution", popup.text)
         self.assertIsNotNone(display.find("GoToStart"))
         self.assertIsNotNone(flow.find('.//string[@id="IDS_FM2Display_Help"]'))
 

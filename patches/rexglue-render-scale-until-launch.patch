@@ -1,0 +1,10 @@
+diff --git a/include/rex/gpu/graphics_system.h b/include/rex/gpu/graphics_system.h
+--- a/include/rex/gpu/graphics_system.h
++++ b/include/rex/gpu/graphics_system.h
+@@ -41,4 +41,4 @@
+               Range{0.0, 1000.0});
+-  REX_SETTING(i32, resolution_scale_x, 1, "Draw resolution scale X", Range{1, 8}, kRestart);
+-  REX_SETTING(i32, resolution_scale_y, 1, "Draw resolution scale Y", Range{1, 8}, kRestart);
++  REX_SETTING(i32, resolution_scale_x, 1, "Draw resolution scale X", Range{1, 8}, kUntilLaunch);
++  REX_SETTING(i32, resolution_scale_y, 1, "Draw resolution scale Y", Range{1, 8}, kUntilLaunch);
+   REX_SETTING(i32, anisotropic_override, 3,

@@ -79,6 +79,7 @@ such as guest file I/O, graphics, input, and audio.
 | [Unsynced presentation](../patches/rexglue-unsynced-present.patch) | Let Vulkan choose a non-VSync presentation mode independently of guest vblank pacing, where the host supports it. |
 | [Presentation setting lifetime](../patches/rexglue-present-until-launch.patch) | Let the port apply the saved host presentation preference before title launch. |
 | [Refresh setting lifetime](../patches/rexglue-refresh-until-launch.patch) | Publish the selected guest refresh rate before title launch, even after startup-only settings are frozen. Otherwise a saved 120 Hz choice could change host presentation while leaving guest timing at 60 Hz. |
+| [Render scale setting lifetime](../patches/rexglue-render-scale-until-launch.patch) | Publish the saved draw scale before the Vulkan renderer attaches to the title and creates its caches. |
 
 ## Timing and evidence
 

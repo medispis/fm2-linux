@@ -28,6 +28,7 @@ the same preferences in a separate PC Settings panel.
 | Aspect Ratio | **Original** fits the image without distortion. **Stretch** fills the window. Neither changes the game's internal render resolution. |
 | Performance HUD | Shows guest FPS and average frame time. It does not count distinct frames on the display. |
 | Refresh Rate | Switches the saved choice between **Original (60 Hz)** and **Experimental (120 Hz)**. Restart to apply it. The popup shows both the active guest rate and the saved choice. |
+| Render Resolution | Cycles through **1280×720 (Native)**, **960×540**, **1920×1080**, and **2560×1440**. Non-native choices are experimental. Restart to apply. It does not resize the window. |
 | Restore Display Defaults | Requires confirmation. Resets the port's display preferences, not your career or stock FM2 options. Refresh rate resets on restart. |
 
 ## Experimental 120 Hz
@@ -40,8 +41,16 @@ tearing. It does not guarantee 120 distinct frames per second or make a
 Local startup measurements showed about 120 guest swaps per second, but
 the 3D main menu produced about 28 swaps per second with draw work at
 both settings on the tested AMD Renoir GPU. A 640×480 guest-mode request
-did not reduce the menu's 1280×720 swap source. There is no render-scale
-option in the native menu.
+did not reduce the menu's 1280×720 swap source.
+
+## Render resolution
+
+**960×540** lowers the actual 3D workload; the Arcade menu was verified
+at this resolution with 4× MSAA. **1920×1080** uses ReXGlue's 2× draw
+scaling on the 540p guest profile; **2560×1440** uses 2× on the native
+720p profile. The higher presets can be slower. Non-native presets
+have not been validated in races. To override
+the saved choice for a single launch, use `sh tools/run-fm2.sh --native-rendering`.
 
 Race timing, physics, replays, and audio have not been validated at 120 Hz.
 To override the saved choice for one launch without rewriting it, use:
