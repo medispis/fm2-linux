@@ -2,6 +2,7 @@
 #include <array>
 #include <cstring>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <map>
 #include <string>
@@ -17,7 +18,9 @@
 #include <rex/logging/log_category.h>
 #include <rex/path_settings.h>
 #include <rex/ppc/hook.h>
+#include <rex/ppc/stack.h>
 #include <rex/settings_registry.h>
+#include <rex/title.h>
 #include <rex/ui/ui_system.h>
 
 #include "generated/default/fm2_init.h"
@@ -32,6 +35,7 @@ struct DisplayMenuFlow {
 DisplayMenuFlow display_menu_flow;
 rex::ui::IUISystem* display_menu_ui = nullptr;
 rex::gpu::IGraphicsSystem* display_menu_graphics = nullptr;
+double active_guest_refresh_hz = 60.0;
 constexpr std::string_view kPerformanceHud = "fm2_performance_hud";
 constexpr std::size_t kStockOptionsSize = 33679;
 
@@ -101,6 +105,11 @@ bool WritePcPreferences(const PcPreferences& preferences) {
   std::error_code error;
   std::filesystem::rename(pending, path, error);
   return !error;
+}
+
+std::string RefreshStatus(const PcPreferences& preferences) {
+  return std::format("Active guest rate: {:g} Hz\nSaved for next normal launch: {} Hz",
+                     active_guest_refresh_hz, preferences.experimental_120hz ? 120 : 60);
 }
 
 constexpr std::array<std::pair<std::string_view, std::string_view>, 3> kExperimentalTiming{{
@@ -191,6 +200,7 @@ class PcSettingsDialog final : public rex::ui::DialogBase {
       } else if (ImGui::IsKeyPressed(ImGuiKey_R, false)) {
         Change(&PcPreferences::experimental_120hz, !preferences_.experimental_120hz);
       }
+      ImGui::TextUnformatted(RefreshStatus(preferences_).c_str());
       ImGui::TextUnformatted("F: Fullscreen  |  R: Frame Rate  |  Esc: Close");
       ImGui::TextWrapped("Restart to apply. 120 Hz may tear; actual FPS and gameplay timing "
                          "are not verified. Launch overrides take precedence.");
@@ -252,6 +262,32 @@ class PcSettingsDialog final : public rex::ui::DialogBase {
 
 extern "C" REX_FUNC(__imp__sub_824CF490);
 extern "C" REX_FUNC(__imp__sub_824B6DB8);
+extern "C" REX_FUNC(__imp__sub_825F4EE8);
+
+// European FM2's Lua type, string argument and push-string functions.
+REX_IMPORT(sub_824B69F8, GuestLuaType, i32(u32, i32));
+REX_IMPORT(sub_824B6DB8, GuestLuaString, u32(u32, i32, u32));
+REX_IMPORT(sub_824B70F8, GuestLuaPushString, void(u32, u32));
+
+REX_HOOK_RAW(sub_825F4EE8) {
+  // UI:fireEvent normally dispatches a string event. This read-only query returns
+  // a string without advancing the native flow.
+  constexpr char kRefreshStatus[] = "FM2ReadRefreshStatus";
+  constexpr i32 kLuaString = 4;
+  const u32 lua = ctx.r3.u32;
+  if (display_menu_ui && lua && GuestLuaType(ctx, base, lua, 2) == kLuaString) {
+    const u32 address = GuestLuaString(ctx, base, lua, 2, 0);
+    if (address && std::strncmp(reinterpret_cast<const char*>(base + address),
+                               kRefreshStatus, sizeof(kRefreshStatus)) == 0) {
+      const auto status = RefreshStatus(ReadPcPreferences());
+      rex::ppc::StackFrame frame(ctx, base);
+      GuestLuaPushString(ctx, base, lua, frame.PushString(status).GetGuestAddress());
+      ctx.r3.u64 = 1;
+      return;
+    }
+  }
+  __imp__sub_825F4EE8(ctx, base);
+}
 
 REX_HOOK_RAW(sub_824CF490) {
   const auto& flow = display_menu_flow;
@@ -377,6 +413,7 @@ class Fm2App : public rex::app::TitleApp {
     const auto root = title.GetTitlePaths().game_root.Get();
     display_menu_flow = ReadDisplayMenuFlow(root);
     display_menu_ui = &GetUI();
+    active_guest_refresh_hz = GetUI().GetVideoMode().refresh_rate;
     std::map<std::string, std::string> aliases;
     for (const auto& entry :
          std::filesystem::recursive_directory_iterator(root / "Media" / "Audio")) {

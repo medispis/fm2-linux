@@ -1,0 +1,8 @@
+diff --git a/include/rex/ui/ui_system.h b/include/rex/ui/ui_system.h
+--- a/include/rex/ui/ui_system.h
++++ b/include/rex/ui/ui_system.h
+@@ -140,3 +140,3 @@ class REX_UI_API UISettings final : public SettingOwner {
+   REX_SETTING(f64, video_mode_refresh_rate, 60.0, "Refresh rate the title sees", Range{24.0, 240.0},
+-              kRestart);
++              kUntilLaunch);
+   REX_SETTING(f64, cursor_timeout, 0.0, "Seconds before an idle cursor hides, 0 never hides",

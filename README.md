@@ -39,6 +39,8 @@ included in this repository.
 
 Use **Refresh Rate** in the native menu, or **Frame Rate (next launch)** in
 F10 PC Settings. Restart to apply the choice. The default is **Original (60 Hz)**.
+Both menus show the active guest rate and the saved choice separately.
+Launch overrides change the active rate without rewriting the saved choice.
 The experimental mode requests 120 Hz guest timing and lets Vulkan present
 without waiting for the monitor where supported.
 This can cause tearing. Local startup measurements showed about 120 guest

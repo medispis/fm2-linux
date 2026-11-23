@@ -36,11 +36,18 @@ def display_branch():
         f"4 AS GroupId, {1001 + i} AS CatId"
         for i, (key, label, _, _, _) in enumerate(DISPLAY_OPTIONS)
     )
+    def popup_message(key, description):
+        if key == "FM2RefreshRate":
+            return r'''
+        local status = UI:fireEvent("FM2ReadRefreshStatus")
+        if type(status) ~= "string" then status = "Refresh status unavailable." end
+        PopupMessage = status .. "\nRestart to apply. 120 Hz is experimental."'''
+        return f'\n        PopupMessage = "{description}"'
+
     choices = "".join(rf"""
 <choice event="{key}">
     <popup path="GAME:\Media\UI\Scenes\PopUp_Message.xgf">
-        PopupTitle = "{label}"
-        PopupMessage = "{description}"
+        PopupTitle = "{label}"{popup_message(key, description)}
         HelpButtonTexts = {{
             A = "{{colour='255 255 255 255'}}{accept}",
             B = "{{colour='255 255 255 255'}}[UI.Strings.IDS_Back]"
