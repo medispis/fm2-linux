@@ -33,6 +33,8 @@ not a verified 120 FPS mode.
   overrides, and save locations.
 - [Troubleshooting](docs/troubleshooting.md): setup failures, launch recovery,
   and what to include in a bug report.
+- [Technical architecture](docs/architecture.md): recompilation, runtime
+  patches, timing, and how the native menu works.
 - [Contributing](CONTRIBUTING.md): project layout, verification, and what
   must stay out of commits.
 

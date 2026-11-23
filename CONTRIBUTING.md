@@ -2,6 +2,9 @@
 
 Read [AGENTS.md](AGENTS.md) for project rules. The only supported setup
 entry point is the command in the [README](README.md#quick-start).
+See [Technical architecture](docs/architecture.md) for the build and
+runtime, and [Native menu internals](docs/native-menu.md) for the
+disc-specific hooks and settings flow.
 
 ## Project layout
 
